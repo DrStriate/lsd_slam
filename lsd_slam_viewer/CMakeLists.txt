@@ -2,7 +2,12 @@ cmake_minimum_required(VERSION 3.0.2)
 project(lsd_slam_viewer)
 
 add_compile_options(-std=c++17)
-#set(CMAKE_BUILD_TYPE Release) // this set when running catkin_make
+
+# Release by default
+# Turn on Debug with "-DCMAKE_BUILD_TYPE=Debug"
+IF( NOT CMAKE_BUILD_TYPE )
+   SET( CMAKE_BUILD_TYPE Release )
+ENDIF()
 
 ADD_SUBDIRECTORY(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
 
