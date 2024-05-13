@@ -1,0 +1,74 @@
+{
+
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "ROS: central_catkin_make DEBUG",
+            "type": "catkin_make",
+            "args": [
+                "--directory",
+				"~/catkin_ws",
+                "-j4",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
+            ],
+            "problemMatcher": "$catkin-gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "ROS: central_catkin_make RELEASE",
+            "type": "catkin_make",
+            "args": [
+                "--directory",
+				"~/catkin_ws",
+                "-j4",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
+            ],
+            "problemMatcher": "$catkin-gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "ROS: make_lsd_slam_core DEBUG",
+            "type": "catkin_make",
+            "args": [
+                "--directory",
+				"~/catkin_ws/",
+                "--pkg",
+                "lsd_slam_core",
+                "-j4",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=1",
+            ],
+            "problemMatcher": "$catkin-gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "ROS: make_lsd_slam_core RELEASE",
+            "type": "catkin_make",
+            "args": [
+                "--directory",
+				"~/catkin_ws/",
+                "--pkg",
+                "lsd_slam_core",
+                "-j4",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=1",
+            ],
+            "problemMatcher": "$catkin-gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+    ]
+}
