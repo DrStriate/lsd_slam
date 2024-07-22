@@ -4,7 +4,7 @@ project(lsd_slam_core)
 # Release by default
 # Turn on Debug with "-DCMAKE_BUILD_TYPE=Debug"
 IF( NOT CMAKE_BUILD_TYPE )
-   SET( CMAKE_BUILD_TYPE Release )
+   SET( CMAKE_BUILD_TYPE RelWithDebInfo )
 ENDIF()
 
 add_compile_options(-std=gnu++17) # fixes some errors about allocator types appearing in newer g++ versions

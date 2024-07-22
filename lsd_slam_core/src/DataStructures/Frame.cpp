@@ -48,12 +48,13 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
     printf("ALLOCATED frame %d, now there are %d\n", this->id(), privateFrameAllocCount);
 }
 
-Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image)
+Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image, bool isDisplacement)
 {
   initialize(id, width, height, K, timestamp);
+  int channels = (isDisplacement? 4 : 1);
 
   data.image[0] = FrameMemory::getInstance().getFloatBuffer(data.width[0] * data.height[0]);
-  memcpy(data.image[0], image, data.width[0] * data.height[0] * sizeof(float));
+  memcpy(data.image[0], image, data.width[0] * data.height[0] * sizeof(float) * channels);
   data.imageValid[0] = true;
 
   privateFrameAllocCount++;
