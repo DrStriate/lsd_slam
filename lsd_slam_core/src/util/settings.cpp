@@ -26,6 +26,7 @@ namespace lsd_slam
 {
 RunningStats runningStats;
 
+bool isDisplacement = false;
 bool autoRun = true;
 bool autoRunWithinFrame = true;
 
@@ -49,6 +50,7 @@ bool printTrackingIterationInfo = false;
 
 bool printFrameBuildDebugInfo = false;
 bool printMemoryDebugInfo = false;
+bool displacementDebugInfo = false;
 
 bool printKeyframeSelectionInfo = false;
 bool printConstraintSearchInfo = false;

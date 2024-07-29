@@ -153,6 +153,7 @@ namespace lsd_slam
 
 // settings variables
 // controlled via keystrokes
+extern bool isDisplacement;
 extern bool autoRun;
 extern bool autoRunWithinFrame;
 extern int debugDisplay;
@@ -180,6 +181,7 @@ extern bool printRelocalizationInfo;
 
 extern bool printFrameBuildDebugInfo;
 extern bool printMemoryDebugInfo;
+extern bool displacementDebugInfo;
 
 extern bool printMappingTiming;
 extern bool printOverallTiming;

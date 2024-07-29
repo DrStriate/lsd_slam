@@ -3,9 +3,14 @@ project(lsd_slam_core)
 
 # Release by default
 # Turn on Debug with "-DCMAKE_BUILD_TYPE=Debug"
+# SET( CMAKE_BUILD_TYPE RelWithDebInfo )
+SET( CMAKE_BUILD_TYPE Debug)
+
 IF( NOT CMAKE_BUILD_TYPE )
-   SET( CMAKE_BUILD_TYPE RelWithDebInfo )
+   SET( CMAKE_BUILD_TYPE Release)
 ENDIF()
+message(">>>>>>>>>>>>>>>>> Building ${CMAKE_BUILD_TYPE}")
+
 
 add_compile_options(-std=gnu++17) # fixes some errors about allocator types appearing in newer g++ versions
 #add_compile_options(-march=native)
@@ -55,7 +60,7 @@ catkin_package(
 
 # SSE flags
 add_definitions("-DUSE_ROS")
-add_definitions("-DENABLE_SSE")
+#add_definitions("-DENABLE_SSE")
 
 # Set source files
 set(lsd_SOURCE_FILES

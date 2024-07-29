@@ -816,7 +816,7 @@ void SlamSystem::gtDepthInit(uchar* image, float* depth, double timeStamp, int i
   printf("Done GT initialization!\n");
 }
 
-void SlamSystem::randomInit(uchar* image, double timeStamp, int id, bool isDisplacement)
+void SlamSystem::randomInit(uchar* image, double timeStamp, int id)
 {
   printf("Doing Random initialization!\n");
 
@@ -825,7 +825,7 @@ void SlamSystem::randomInit(uchar* image, double timeStamp, int id, bool isDispl
 
   currentKeyFrameMutex.lock();
 
-  currentKeyFrame.reset(new Frame(id, width, height, K, timeStamp, (float*) image, isDisplacement));
+  currentKeyFrame.reset(new Frame(id, width, height, K, timeStamp, (float*) image));
   map->initializeRandomly(currentKeyFrame.get());
   keyFrameGraph->addFrame(currentKeyFrame.get());
 
@@ -846,10 +846,10 @@ void SlamSystem::randomInit(uchar* image, double timeStamp, int id, bool isDispl
   printf("Done Random initialization!\n");
 }
 
-void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilMapped, double timestamp, bool isDisplacement)
+void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilMapped, double timestamp)
 {
   // Create new frame
-  std::shared_ptr<Frame> trackingNewFrame(new Frame(frameID, width, height, K, timestamp, (float*) image, isDisplacement));
+  std::shared_ptr<Frame> trackingNewFrame(new Frame(frameID, width, height, K, timestamp, (float*) image));
 
   if (!trackingIsGood)
   {

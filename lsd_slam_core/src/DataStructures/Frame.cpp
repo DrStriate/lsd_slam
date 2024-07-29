@@ -48,14 +48,33 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
     printf("ALLOCATED frame %d, now there are %d\n", this->id(), privateFrameAllocCount);
 }
 
-Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image, bool isDisplacement)
+Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image)
 {
   initialize(id, width, height, K, timestamp);
   int channels = (isDisplacement? 4 : 1);
 
-  data.image[0] = FrameMemory::getInstance().getFloatBuffer(data.width[0] * data.height[0]);
+  int dataCount = width * height * channels;
+  data.image[0] = FrameMemory::getInstance().getFloatBuffer(dataCount * channels);
   memcpy(data.image[0], image, data.width[0] * data.height[0] * sizeof(float) * channels);
   data.imageValid[0] = true;
+
+  if (isDisplacement)
+  {
+        // Now place the image data contiguously in the beginning of the displacementImage buffer 
+    data.displacementImage = FrameMemory::getInstance().getFloatBuffer(width * height);
+    float* src_pt = data.image[0];
+    float* dst_pt = data.displacementImage;
+    float dScale = 14.0f; 
+    float dOffset = 128.0f;
+    for (int i = 0; i < width * height; i++)
+    {
+      *dst_pt = *src_pt * dScale + dOffset;
+      // if (i == height / 2 * width + width / 2 )
+      //   printf(" P: %f, ", *dst_pt);
+      dst_pt += 1;
+      src_pt += 4;
+    }
+  }
 
   privateFrameAllocCount++;
 
@@ -491,7 +510,8 @@ void Frame::buildImage(int level)
   const float* source = data.image[level - 1];
 
   if (data.image[level] == 0)
-    data.image[level] = FrameMemory::getInstance().getFloatBuffer(data.width[level] * data.height[level]);
+    data.image[level] = FrameMemory::getInstance().getFloatBuffer(data.width[level] * data.height[level] 
+    * (isDisplacement ? 4 : 1));
   float* dest = data.image[level];
 
 #if defined(ENABLE_SSE)
@@ -584,19 +604,20 @@ void Frame::buildImage(int level)
     return;
   }
 #endif
-
-  int wh = width * height;
-  const float* s;
-  for (int y = 0; y < wh; y += width * 2)
+  int channels = (isDisplacement ? 4 : 1);
+  const float *s;
+  for (int y = 0; y < height - 1; y += 2)
   {
-    for (int x = 0; x < width; x += 2)
+    for (int x = 0; x < width - 1; x += 2)
     {
-      s = source + x + y;
-      *dest = (s[0] + s[1] + s[width] + s[1 + width]) * 0.25f;
-      dest++;
+      for (int channel = 0; channel < channels; channel++)
+      {
+        s = source + (y * width + x) * channels + channel;
+        *dest = (s[0] + s[channels] + s[width * channels] + s[(1 + width) * channels]) * 0.25f;
+        dest++;
+      }
     }
   }
-
   data.imageValid[level] = true;
 }
 
@@ -627,25 +648,54 @@ void Frame::buildGradients(int level)
   if (data.gradients[level] == 0)
     data.gradients[level] =
         (Eigen::Vector4f*)FrameMemory::getInstance().getBuffer(sizeof(Eigen::Vector4f) * width * height);
-  const float* img_pt = data.image[level] + width;
-  const float* img_pt_max = data.image[level] + width * (height - 1);
-  Eigen::Vector4f* gradxyii_pt = data.gradients[level] + width;
 
-  // in each iteration i need -1,0,p1,mw,pw
-  float val_m1 = *(img_pt - 1);
-  float val_00 = *img_pt;
-  float val_p1;
-
-  for (; img_pt < img_pt_max; img_pt++, gradxyii_pt++)
+  Eigen::Vector4f *gradxyii_pt = data.gradients[level] + width;
+  if (!isDisplacement)
   {
-    val_p1 = *(img_pt + 1);
+    int channels = 1;
+    const float* img_pt = data.image[level] + width * channels;
+    const float* img_pt_max = data.image[level] + width * (height - 1) * channels;
 
-    *((float*)gradxyii_pt) = 0.5f * (val_p1 - val_m1);
-    *(((float*)gradxyii_pt) + 1) = 0.5f * (*(img_pt + width) - *(img_pt - width));
-    *(((float*)gradxyii_pt) + 2) = val_00;
+    // in each iteration i need -1,0,p1,mw,pw
+    float val_m1 = *(img_pt - 1);
+    float val_00 = *img_pt;
+    float val_p1;
 
-    val_m1 = val_00;
-    val_00 = val_p1;
+    for (; img_pt < img_pt_max; img_pt++, gradxyii_pt++)
+    {
+      val_p1 = *(img_pt + 1);
+
+      *((float*)gradxyii_pt) = 0.5f * (val_p1 - val_m1);
+      *(((float*)gradxyii_pt) + 1) = 0.5f * (*(img_pt + width) - *(img_pt - width));
+      *(((float*)gradxyii_pt) + 2) = val_00;
+
+      val_m1 = val_00;
+      val_00 = val_p1;
+    }
+  }
+  else // displacement gradient data
+  {
+    int channels = 4;
+    float *img_pt = data.image[level] + width * channels;
+    float *img_pt_max = data.image[level] + width * (height - 1) * channels;
+      
+    float dScale = 40.0f; 
+    float dOffset = 128.0f;
+    float gGain = 255.0f;
+    int idx = 0;
+    for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++)
+    {
+      *(((float*)gradxyii_pt) + 0) = img_pt[2] * gGain; // gx
+      *(((float*)gradxyii_pt) + 1) = img_pt[3] * gGain; // gy 
+      *(((float*)gradxyii_pt) + 2) = img_pt[0] * dScale + dOffset; // dx // dx and dy combined act as a intensity (va)
+      *(((float*)gradxyii_pt) + 3) = img_pt[1] * dScale + dOffset; // dy
+
+      if (idx ++ == (height/ 2) * width + width / 2 && displacementDebugInfo)
+      {
+        printf ("gradient level %i id %i gx %f gy %f dx %f dy %f\n", 
+          level, data.id, img_pt[2], img_pt[3], img_pt[0], img_pt[1]);
+      }
+    }
   }
 
   data.gradientsValid[level] = true;

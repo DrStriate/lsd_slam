@@ -43,7 +43,7 @@ public:
 
   Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const unsigned char* image);
 
-  Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image, bool isDisplacement = false);
+  Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image);
 
   ~Frame();
 
@@ -232,6 +232,7 @@ private:
     double timestamp;
 
     float* image[PYRAMID_LEVELS];
+    float* displacementImage;
     bool imageValid[PYRAMID_LEVELS];
 
     Eigen::Vector4f* gradients[PYRAMID_LEVELS];
@@ -340,20 +341,37 @@ inline double Frame::timestamp() const
 
 inline float* Frame::image(int level)
 {
+  //printf ("request (IMAGE, id %i level %i)\n", data.id, level);
+  if (isDisplacement && level == 0)
+  {
+    return data.displacementImage;
+  }
   if (!data.imageValid[level])
+  {  
+    if (displacementDebugInfo)
+      printf ("require(IMAGE, id %i level %i)\n", data.id, level);
     require(IMAGE, level);
+  }
   return data.image[level];
 }
 inline const Eigen::Vector4f* Frame::gradients(int level)
 {
   if (!data.gradientsValid[level])
+  {
+    if (displacementDebugInfo)
+      printf ("require(GRADIENTS, id %i level %i)\n", data.id, level);
     require(GRADIENTS, level);
+  }
   return data.gradients[level];
 }
 inline const float* Frame::maxGradients(int level)
 {
   if (!data.maxGradientsValid[level])
+  {
+    if (displacementDebugInfo)
+      printf ("require(MAX_GRADIENTS, id %i level %i)\n", data.id, level);
     require(MAX_GRADIENTS, level);
+  }
   return data.maxGradients[level];
 }
 inline bool Frame::hasIDepthBeenSet() const
@@ -368,7 +386,11 @@ inline const float* Frame::idepth(int level)
     return nullptr;
   }
   if (!data.idepthValid[level])
+  {
+    if (displacementDebugInfo)
+      printf ("require(IDEPTH, id %i level %i)\n", data.id, level);
     require(IDEPTH, level);
+  }
   return data.idepth[level];
 }
 inline const unsigned char* Frame::validity_reAct()
@@ -397,7 +419,10 @@ inline const float* Frame::idepthVar(int level)
     return nullptr;
   }
   if (!data.idepthVarValid[level])
+  {
+    printf ("require(IDEPTH_VAR, level %i)\n", level);
     require(IDEPTH_VAR, level);
+  }
   return data.idepthVar[level];
 }
 

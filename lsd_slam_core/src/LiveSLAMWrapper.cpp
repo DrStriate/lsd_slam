@@ -107,8 +107,8 @@ void LiveSLAMWrapper::newImageCallback(const cv::Mat& img, Timestamp imgTime)
 {
   ++imageSeqNumber;
   cv::Mat floatGrayImg;
-  bool isDisplacement = (img.channels() == 4);
-
+  isDisplacement = (img.channels() == 4);
+  
   if (!isDisplacement)
   {
     // Convert image to grayscale, if necessary
@@ -129,15 +129,18 @@ void LiveSLAMWrapper::newImageCallback(const cv::Mat& img, Timestamp imgTime)
     floatGrayImg = img;
   }
 
+  if (displacementDebugInfo)
+    printf("imageSeqNumber: %i\n", imageSeqNumber);
+
   // need to initialize
   if (!isInitialized)
   {
-    monoOdometry->randomInit(floatGrayImg.data, imgTime.toSec(), 1, isDisplacement);
+    monoOdometry->randomInit(floatGrayImg.data, imgTime.toSec(), 1);
     isInitialized = true;
   }
   else if (isInitialized && monoOdometry != nullptr)
   {
-    monoOdometry->trackFrame(floatGrayImg.data, imageSeqNumber, false, imgTime.toSec(), isDisplacement);
+    monoOdometry->trackFrame(floatGrayImg.data, imageSeqNumber, false, imgTime.toSec());
   }
 }
 

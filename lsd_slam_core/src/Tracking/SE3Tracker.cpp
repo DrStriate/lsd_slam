@@ -861,6 +861,25 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       continue;
     }
 
+    /*
+    Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
+
+    float c1x = affineEstimation_a * (*refColVar)[0] + affineEstimation_b;
+    float c2x = resInterp[2];
+
+    float c1y = affineEstimation_a * (*refColVar)[1] + affineEstimation_b;
+    float c2y = resInterp[3];
+
+    float residual = (c1x - c2x);
+
+    float weight = fabsf(residual) < 5.0f ? 1 : 5.0f / fabsf(residual);
+    sxx += c1x * c1x * weight;
+    syy += c2x * c2x * weight;
+    sx += c1x * weight;
+    sy += c2x * weight;
+    sw += weight;
+    */
+
     Eigen::Vector3f resInterp = getInterpolatedElement43(frame_gradients, u_new, v_new, w);
 
     float c1 = affineEstimation_a * (*refColVar)[0] + affineEstimation_b;
