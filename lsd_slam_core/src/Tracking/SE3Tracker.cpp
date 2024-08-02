@@ -162,7 +162,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
   trackingWasGood = true;
 
   callOptimized(calcResidualAndBuffers,
-                (reference->permaRef_posData, reference->permaRef_colorAndVarData, 0, reference->permaRefNumPts, frame,
+                (reference->permaRef_posData, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts, frame,
                  referenceToFrame, QUICK_KF_CHECK_LVL, false));
   if (buf_warped_size < MIN_GOODPERALL_PIXEL_ABSMIN * (width >> QUICK_KF_CHECK_LVL) * (height >> QUICK_KF_CHECK_LVL))
   {
@@ -199,7 +199,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
 
       // re-evaluate residual
       callOptimized(calcResidualAndBuffers,
-                    (reference->permaRef_posData, reference->permaRef_colorAndVarData, 0, reference->permaRefNumPts,
+                    (reference->permaRef_posData, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts,
                      frame, new_referenceToFrame, QUICK_KF_CHECK_LVL, false));
       if (buf_warped_size <
           MIN_GOODPERALL_PIXEL_ABSMIN * (width >> QUICK_KF_CHECK_LVL) * (height >> QUICK_KF_CHECK_LVL))
@@ -300,7 +300,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
     reference->makePointCloud(lvl);
 
     callOptimized(calcResidualAndBuffers,
-                  (reference->posData[lvl], reference->colorAndVarData[lvl],
+                  (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
                    SE3TRACKING_MIN_LEVEL == lvl ? reference->pointPosInXYGrid[lvl] : 0, reference->numData[lvl], frame,
                    referenceToFrame, lvl, (plotTracking && lvl == SE3TRACKING_MIN_LEVEL)));
     if (buf_warped_size < MIN_GOODPERALL_PIXEL_ABSMIN * (width >> lvl) * (height >> lvl))
@@ -346,7 +346,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
 
         // re-evaluate residual
         callOptimized(calcResidualAndBuffers,
-                      (reference->posData[lvl], reference->colorAndVarData[lvl],
+                      (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
                        SE3TRACKING_MIN_LEVEL == lvl ? reference->pointPosInXYGrid[lvl] : 0, reference->numData[lvl],
                        frame, new_referenceToFrame, lvl, (plotTracking && lvl == SE3TRACKING_MIN_LEVEL)));
         if (buf_warped_size < MIN_GOODPERALL_PIXEL_ABSMIN * (width >> lvl) * (height >> lvl))
@@ -790,25 +790,25 @@ void SE3Tracker::calcResidualAndBuffers_debugFinish(int w)
 }
 
 #if defined(ENABLE_SSE)
-float SE3Tracker::calcResidualAndBuffersSSE(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar,
+float SE3Tracker::calcResidualAndBuffersSSE(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
                                             int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame,
                                             int level, bool plotResidual)
 {
-  return calcResidualAndBuffers(refPoint, refColVar, idxBuf, refNum, frame, referenceToFrame, level, plotResidual);
+  return calcResidualAndBuffers(refPoint, refColVar, gradData, idxBuf, refNum, frame, referenceToFrame, level, plotResidual);
 }
 #endif
 
 #if defined(ENABLE_NEON)
-float SE3Tracker::calcResidualAndBuffersNEON(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar,
+float SE3Tracker::calcResidualAndBuffersNEON(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
                                              int* idxBuf, int refNum, Frame* frame,
                                              const Sophus::SE3f& referenceToFrame, int level, bool plotResidual)
 {
-  return calcResidualAndBuffers(refPoint, refColVar, idxBuf, refNum, frame, referenceToFrame, level, plotResidual);
+  return calcResidualAndBuffers(refPoint, refColVar, gradData, idxBuf, refNum, frame, referenceToFrame, level, plotResidual);
 }
 #endif
 
-float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, int* idxBuf,
-                                         int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
+float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
+                                         int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                          bool plotResidual)
 {
   calcResidualAndBuffers_debugStart();
@@ -846,7 +846,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
 
   float usageCount = 0;
 
-  for (; refPoint < refPoint_max; refPoint++, refColVar++, idxBuf++)
+  for (; refPoint < refPoint_max; refPoint++, refColVar++, idxBuf++, gradData++)
   {
     Eigen::Vector3f Wxp = rotMat * (*refPoint) + transVec;
     float u_new = (Wxp[0] / Wxp[2]) * fx_l + cx_l;
@@ -861,42 +861,46 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       continue;
     }
 
-    /*
+    float residual = 0;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
-    float c1x = affineEstimation_a * (*refColVar)[0] + affineEstimation_b;
-    float c2x = resInterp[2];
+    if (isDisplacement)
+    {
+      float d1x = (*gradData)[2];
+      float d2x = resInterp[2];
 
-    float c1y = affineEstimation_a * (*refColVar)[1] + affineEstimation_b;
-    float c2y = resInterp[3];
+      float d1y = (*gradData)[3];
+      float d2y = resInterp[3];
 
-    float residual = (c1x - c2x);
+      float Dx = d1x - d2x;
+      float Dy = d1y - d2y;
 
-    float weight = fabsf(residual) < 5.0f ? 1 : 5.0f / fabsf(residual);
-    sxx += c1x * c1x * weight;
-    syy += c2x * c2x * weight;
-    sx += c1x * weight;
-    sy += c2x * weight;
-    sw += weight;
-    */
+      residual = Dx;
+      //residual = Dy;
+      //residual = sqrt(Dx * Dx + Dy * Dy);
+    }
+    else
+    {
+      float c1 = affineEstimation_a * (*refColVar)[0] + affineEstimation_b;
+      float c2 = resInterp[2];
+      residual = c1 - c2;
 
-    Eigen::Vector3f resInterp = getInterpolatedElement43(frame_gradients, u_new, v_new, w);
-
-    float c1 = affineEstimation_a * (*refColVar)[0] + affineEstimation_b;
-    float c2 = resInterp[2];
-    float residual = c1 - c2;
-
-    float weight = fabsf(residual) < 5.0f ? 1 : 5.0f / fabsf(residual);
-    sxx += c1 * c1 * weight;
-    syy += c2 * c2 * weight;
-    sx += c1 * weight;
-    sy += c2 * weight;
-    sw += weight;
+      float weight = fabsf(residual) < 5.0f ? 1 : 5.0f / fabsf(residual);
+      sxx += c1 * c1 * weight;
+      syy += c2 * c2 * weight;
+      sx += c1 * weight;
+      sy += c2 * weight;
+      sw += weight;
+    }
 
     bool isGood =
         residual * residual /
             (MAX_DIFF_CONSTANT + MAX_DIFF_GRAD_MULT * (resInterp[0] * resInterp[0] + resInterp[1] * resInterp[1])) <
         1;
+    // if (!isGood)
+    // {
+    //    printf("Pount !isGood. resdual: %f, gradSqr: %f\n", residual * residual, (resInterp[0] * resInterp[0] + resInterp[1] * resInterp[1]));
+    // }
 
     if (isGoodOutBuffer != 0)
       isGoodOutBuffer[*idxBuf] = isGood;
@@ -954,6 +958,8 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
   lastGoodCount = goodCount;
   lastBadCount = badCount;
   lastMeanRes = sumSignedRes / goodCount;
+
+  //printf("Good Count: %i (%f %%)\n", goodCount, (float)goodCount / (float)(goodCount + badCount) * 100.0f);
 
   affineEstimation_a_lastIt = sqrtf((syy - sy * sy / sw) / (sxx - sx * sx / sw));
   affineEstimation_b_lastIt = (sy - affineEstimation_a_lastIt * sx) / sw;

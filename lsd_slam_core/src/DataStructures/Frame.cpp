@@ -679,22 +679,16 @@ void Frame::buildGradients(int level)
     float *img_pt = data.image[level] + width * channels;
     float *img_pt_max = data.image[level] + width * (height - 1) * channels;
       
-    float dScale = 40.0f; 
-    float dOffset = 128.0f;
-    float gGain = 255.0f;
+    float dScale = 8.0f;  
+    float dOffset = 0.0f;  
+    float gGain = 512.0f;   
     int idx = 0;
     for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++)
     {
       *(((float*)gradxyii_pt) + 0) = img_pt[2] * gGain; // gx
       *(((float*)gradxyii_pt) + 1) = img_pt[3] * gGain; // gy 
-      *(((float*)gradxyii_pt) + 2) = img_pt[0] * dScale + dOffset; // dx // dx and dy combined act as a intensity (va)
+      *(((float*)gradxyii_pt) + 2) = img_pt[0] * dScale + dOffset; // dx
       *(((float*)gradxyii_pt) + 3) = img_pt[1] * dScale + dOffset; // dy
-
-      if (idx ++ == (height/ 2) * width + width / 2 && displacementDebugInfo)
-      {
-        printf ("gradient level %i id %i gx %f gy %f dx %f dy %f\n", 
-          level, data.id, img_pt[2], img_pt[3], img_pt[0], img_pt[1]);
-      }
     }
   }
 

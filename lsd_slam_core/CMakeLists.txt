@@ -4,7 +4,7 @@ project(lsd_slam_core)
 # Release by default
 # Turn on Debug with "-DCMAKE_BUILD_TYPE=Debug"
 # SET( CMAKE_BUILD_TYPE RelWithDebInfo )
-SET( CMAKE_BUILD_TYPE Debug)
+# SET( CMAKE_BUILD_TYPE Debug)
 
 IF( NOT CMAKE_BUILD_TYPE )
    SET( CMAKE_BUILD_TYPE Release)

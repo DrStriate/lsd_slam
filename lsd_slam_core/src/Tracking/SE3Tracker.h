@@ -88,18 +88,18 @@ private:
 
   int buf_warped_size;
 
-  float calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, int* idxBuf,
-                               int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
+  float calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
+                               int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                bool plotResidual = false);
 
 #if defined(ENABLE_SSE)
-  float calcResidualAndBuffersSSE(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, int* idxBuf,
-                                  int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
+  float calcResidualAndBuffersSSE(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData, 
+                                  int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                   bool plotResidual = false);
 #endif
 #if defined(ENABLE_NEON)
-  float calcResidualAndBuffersNEON(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, int* idxBuf,
-                                   int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
+  float calcResidualAndBuffersNEON(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
+                                   int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                    bool plotResidual = false);
 #endif
 

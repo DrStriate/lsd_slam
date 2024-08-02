@@ -414,7 +414,7 @@ void Sim3Tracker::calcSim3Buffers(const TrackingReference* reference, Frame* fra
   const Eigen::Vector3f* refPoint_max = reference->posData[level] + reference->numData[level];
   const Eigen::Vector3f* refPoint = reference->posData[level];
   const Eigen::Vector2f* refColVar = reference->colorAndVarData[level];
-  const Eigen::Vector2f* refGrad = reference->gradData[level];
+  const Eigen::Vector4f* refGrad = reference->gradData[level];
 
   const float* frame_idepth = frame->idepth(level);
   const float* frame_idepthVar = frame->idepthVar(level);

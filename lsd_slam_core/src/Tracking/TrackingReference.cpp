@@ -120,13 +120,13 @@ void TrackingReference::makePointCloud(int level)
     pointPosInXYGrid[level] = (int*)Eigen::internal::aligned_malloc(w * h * sizeof(int));
   ;
   if (gradData[level] == nullptr)
-    gradData[level] = new Eigen::Vector2f[w * h];
+    gradData[level] = new Eigen::Vector4f[w * h];
   if (colorAndVarData[level] == nullptr)
     colorAndVarData[level] = new Eigen::Vector2f[w * h];
 
   Eigen::Vector3f* posDataPT = posData[level];
   int* idxPT = pointPosInXYGrid[level];
-  Eigen::Vector2f* gradDataPT = gradData[level];
+  Eigen::Vector4f* gradDataPT = gradData[level];
   Eigen::Vector2f* colorAndVarDataPT = colorAndVarData[level];
 
   for (int x = 1; x < w - 1; x++)
@@ -139,7 +139,7 @@ void TrackingReference::makePointCloud(int level)
 
       *posDataPT =
           (1.0f / pyrIdepthSource[idx]) * Eigen::Vector3f(fxInvLevel * x + cxInvLevel, fyInvLevel * y + cyInvLevel, 1);
-      *gradDataPT = pyrGradSource[idx].head<2>();
+      *gradDataPT = pyrGradSource[idx].head<4>();
       *colorAndVarDataPT = Eigen::Vector2f(pyrColorSource[idx], pyrIdepthVarSource[idx]);
       *idxPT = idx;
 

@@ -320,6 +320,15 @@ public:
     for (int i = 0; i < static_cast<int>(sizeof(RunningStats) / sizeof(int)); i++)
       pt[i] += pt_r[i];
   }
+
+  static void printMidPixel4(const float* buffer, int width, int height)
+  {
+    int idx = 100; //(height / 2) * width + width / 2;
+    printf("P0: %f, ", buffer[idx * 4 + 0]);
+    printf("P1: %f, ", buffer[idx * 4 + 1]);
+    printf("P2: %f, ", buffer[idx * 4 + 2]);
+    printf("P3: %f, \n", buffer[idx * 4 + 3]);
+  }
 };
 
 class DenseDepthTrackerSettings
