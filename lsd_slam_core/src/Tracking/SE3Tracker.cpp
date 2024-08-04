@@ -875,9 +875,9 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       float Dx = d1x - d2x;
       float Dy = d1y - d2y;
 
-      residual = Dx;
+      //residual = Dx;
       //residual = Dy;
-      //residual = sqrt(Dx * Dx + Dy * Dy);
+      residual = sqrt(Dx * Dx + Dy * Dy);
     }
     else
     {
@@ -909,8 +909,8 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     *(buf_warped_y + idx) = Wxp(1);
     *(buf_warped_z + idx) = Wxp(2);
 
-    *(buf_warped_dx + idx) = fx_l * resInterp[0];
-    *(buf_warped_dy + idx) = fy_l * resInterp[1];
+    *(buf_warped_dx + idx) = fx_l * (isDisplacement ? resInterp[2] : resInterp[0]);   // change gradient (dI/dx) to displacement x in displacment model
+    *(buf_warped_dy + idx) = fy_l * (isDisplacement ? resInterp[3] : resInterp[1]);   // change gradient (dI/dy) to displacement y in displacment model 
     *(buf_warped_residual + idx) = residual;
 
     *(buf_d + idx) = 1.0f / (*refPoint)[2];
