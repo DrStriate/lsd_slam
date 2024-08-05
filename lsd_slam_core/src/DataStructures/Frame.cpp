@@ -510,47 +510,49 @@ void Frame::buildImage(int level)
   const float* source = data.image[level - 1];
 
   if (data.image[level] == 0)
-    data.image[level] = FrameMemory::getInstance().getFloatBuffer(data.width[level] * data.height[level] 
-    * (isDisplacement ? 4 : 1));
-  float* dest = data.image[level];
+    data.image[level] = FrameMemory::getInstance().getFloatBuffer(data.width[level] * data.height[level] * (isDisplacement ? 4 : 1));
+  float *dest = data.image[level];
 
 #if defined(ENABLE_SSE)
-  // I assume all all subsampled width's are a multiple of 8.
-  // if this is not the case, this still works except for the last * pixel, which will produce a segfault.
-  // in that case, reduce this loop and calculate the last 0-3 dest pixels by hand....
-  if (width % 8 == 0)
+  if (!isDisplacement) // ToDo: filter 4 channel image)
   {
-    __m128 p025 = _mm_setr_ps(0.25f, 0.25f, 0.25f, 0.25f);
-
-    const float* maxY = source + width * height;
-    for (const float* y = source; y < maxY; y += width * 2)
+    // I assume all all subsampled width's are a multiple of 8.
+    // if this is not the case, this still works except for the last * pixel, which will produce a segfault.
+    // in that case, reduce this loop and calculate the last 0-3 dest pixels by hand....
+    if (width % 8 == 0)
     {
-      const float* maxX = y + width;
-      for (const float* x = y; x < maxX; x += 8)
+      __m128 p025 = _mm_setr_ps(0.25f, 0.25f, 0.25f, 0.25f);
+
+      const float *maxY = source + width * height;
+      for (const float *y = source; y < maxY; y += width * 2)
       {
-        // i am calculating four dest pixels at a time.
+        const float *maxX = y + width;
+        for (const float *x = y; x < maxX; x += 8)
+        {
+          // i am calculating four dest pixels at a time.
 
-        __m128 top_left = _mm_load_ps((float*)x);
-        __m128 bot_left = _mm_load_ps((float*)x + width);
-        __m128 left = _mm_add_ps(top_left, bot_left);
+          __m128 top_left = _mm_load_ps((float *)x);
+          __m128 bot_left = _mm_load_ps((float *)x + width);
+          __m128 left = _mm_add_ps(top_left, bot_left);
 
-        __m128 top_right = _mm_load_ps((float*)x + 4);
-        __m128 bot_right = _mm_load_ps((float*)x + width + 4);
-        __m128 right = _mm_add_ps(top_right, bot_right);
+          __m128 top_right = _mm_load_ps((float *)x + 4);
+          __m128 bot_right = _mm_load_ps((float *)x + width + 4);
+          __m128 right = _mm_add_ps(top_right, bot_right);
 
-        __m128 sumA = _mm_shuffle_ps(left, right, _MM_SHUFFLE(2, 0, 2, 0));
-        __m128 sumB = _mm_shuffle_ps(left, right, _MM_SHUFFLE(3, 1, 3, 1));
+          __m128 sumA = _mm_shuffle_ps(left, right, _MM_SHUFFLE(2, 0, 2, 0));
+          __m128 sumB = _mm_shuffle_ps(left, right, _MM_SHUFFLE(3, 1, 3, 1));
 
-        __m128 sum = _mm_add_ps(sumA, sumB);
-        sum = _mm_mul_ps(sum, p025);
+          __m128 sum = _mm_add_ps(sumA, sumB);
+          sum = _mm_mul_ps(sum, p025);
 
-        _mm_store_ps(dest, sum);
-        dest += 4;
+          _mm_store_ps(dest, sum);
+          dest += 4;
+        }
       }
-    }
 
-    data.imageValid[level] = true;
-    return;
+      data.imageValid[level] = true;
+      return;
+    }
   }
 #elif defined(ENABLE_NEON)
   // I assume all all subsampled width's are a multiple of 8.
