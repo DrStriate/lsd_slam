@@ -76,6 +76,8 @@ public:
 
 private:
   float* buf_warped_residual;
+  float* buf_warped_residual_x;
+  float* buf_warped_residual_y;
   float* buf_warped_dx;
   float* buf_warped_dy;
   float* buf_warped_x;

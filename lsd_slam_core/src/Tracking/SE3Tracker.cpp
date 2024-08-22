@@ -61,6 +61,8 @@ SE3Tracker::SE3Tracker(int w, int h, Eigen::Matrix3f K)
   cyi = KInv(1, 2);
 
   buf_warped_residual = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
+  buf_warped_residual_x = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
+  buf_warped_residual_y = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_dx = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_dy = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_x = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
@@ -96,6 +98,8 @@ SE3Tracker::~SE3Tracker()
   debugImageOldImageWarped.release();
 
   Eigen::internal::aligned_free((void*)buf_warped_residual);
+  Eigen::internal::aligned_free((void*)buf_warped_residual_x);
+  Eigen::internal::aligned_free((void*)buf_warped_residual_y);
   Eigen::internal::aligned_free((void*)buf_warped_dx);
   Eigen::internal::aligned_free((void*)buf_warped_dy);
   Eigen::internal::aligned_free((void*)buf_warped_x);
@@ -861,22 +865,19 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       continue;
     }
 
-    float residual = 0;
+    float residual, Dx, Dy;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
     if (isDisplacement)
     {
       float d1x = (*gradData)[2];
       float d2x = resInterp[2];
+      Dx = d1x - d2x;
 
       float d1y = (*gradData)[3];
       float d2y = resInterp[3];
+      Dy = d1y - d2y;
 
-      float Dx = d1x - d2x;
-      float Dy = d1y - d2y;
-
-      //residual = Dx;
-      //residual = Dy;
       residual = sqrt(Dx * Dx + Dy * Dy);
     }
     else
@@ -909,9 +910,20 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     *(buf_warped_y + idx) = Wxp(1);
     *(buf_warped_z + idx) = Wxp(2);
 
-    *(buf_warped_dx + idx) = fx_l * (isDisplacement ? resInterp[2] : resInterp[0]);   // change gradient (dI/dx) to displacement x in displacment model
-    *(buf_warped_dy + idx) = fy_l * (isDisplacement ? resInterp[3] : resInterp[1]);   // change gradient (dI/dy) to displacement y in displacment model 
-    *(buf_warped_residual + idx) = residual;
+    if (isDisplacement)
+    {
+      *(buf_warped_dx + idx) = resInterp[2] * fx_l;   // Displacement model uses Displacement and Disparity 2D vects
+      *(buf_warped_dy + idx) = resInterp[3] * fy_l; 
+      *(buf_warped_residual + idx) = residual;  
+      // *(buf_warped_residual_x + idx) = Dx;
+      // *(buf_warped_residual_y + idx) = Dy;
+    }
+    else
+    {
+      *(buf_warped_dx + idx) = fx_l * resInterp[0];   // Greyscale uses image gradients and intensity diffs   
+      *(buf_warped_dy + idx) = fy_l * resInterp[1];   
+      *(buf_warped_residual + idx) = residual;
+    }
 
     *(buf_d + idx) = 1.0f / (*refPoint)[2];
     *(buf_idepthVar + idx) = (*refColVar)[1];
@@ -1207,35 +1219,79 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls)
   //	weightEstimator.estimateDistribution(buf_warped_residual, buf_warped_size);
   //	weightEstimator.calcWeights(buf_warped_residual, buf_warped_weights, buf_warped_size);
   //
-  ls.initialize(width * height);
-  for (int i = 0; i < buf_warped_size; i++)
+  if (false)//isDisplacement)
   {
-    float px = *(buf_warped_x + i);
-    float py = *(buf_warped_y + i);
-    float pz = *(buf_warped_z + i);
-    float r = *(buf_warped_residual + i);
-    float gx = *(buf_warped_dx + i);
-    float gy = *(buf_warped_dy + i);
-    // step 3 + step 5 comp 6d error vector
+    ls.initialize(width * height * 2);
+    for (int i = 0; i < buf_warped_size; i++)
+    {
+      float px = *(buf_warped_x + i);
+      float py = *(buf_warped_y + i);
+      float pz = *(buf_warped_z + i);
+      float dx = *(buf_warped_dx + i);
+      float dy = *(buf_warped_dy + i);
+      float rDx = *(buf_warped_residual_x + i);
+      float rDy = *(buf_warped_residual_y + i);
 
-    float z = 1.0f / pz;
-    float z_sqr = 1.0f / (pz * pz);
-    Vector6 v;
-    v[0] = z * gx + 0;
-    v[1] = 0 + z * gy;
-    v[2] = (-px * z_sqr) * gx + (-py * z_sqr) * gy;
-    v[3] = (-px * py * z_sqr) * gx + (-(1.0 + py * py * z_sqr)) * gy;
-    v[4] = (1.0 + px * px * z_sqr) * gx + (px * py * z_sqr) * gy;
-    v[5] = (-py * z) * gx + (px * z) * gy;
+      // step 3 + step 5 comp 6d error vector
+      float z = 1.0f / pz;
+      float z_sqr = 1.0f / (pz * pz);
 
-    // step 6: integrate into A and b:
-    ls.update(v, r, *(buf_weight_p + i));
+      // rDx errors
+      Vector6 Jx;
+      Jx[0] = z * dx;
+      Jx[1] = 0;
+      Jx[2] = (-px * z_sqr) * dx;
+      Jx[3] = (-px * py * z_sqr) * dx;
+      Jx[4] = (1.0 + px * px * z_sqr) * dx;
+      Jx[5] = (-py * z) * dx;
+
+      ls.update(Jx, -rDx, *(buf_weight_p + i));
+
+      // rDxy errors
+      Vector6 Jy;
+      Jy[0] = 0;
+      Jy[1] = z * dy;
+      Jy[2] = (-py * z_sqr) * dy;
+      Jy[3] = (-(1.0 + py * py * z_sqr)) * dy;
+      Jy[4] = (px * py * z_sqr) * dy;
+      Jy[5] = (px * z) * dy;
+
+      ls.update(Jy, -rDy, *(buf_weight_p + i));
+    }
+  }
+  else
+  {
+    ls.initialize(width * height);
+    for (int i = 0; i < buf_warped_size; i++)
+    {
+      float px = *(buf_warped_x + i);
+      float py = *(buf_warped_y + i);
+      float pz = *(buf_warped_z + i);
+      float r = *(buf_warped_residual + i);
+      float gx = *(buf_warped_dx + i);
+      float gy = *(buf_warped_dy + i);
+      // step 3 + step 5 comp 6d error vector
+      float z = 1.0f / pz;
+      float z_sqr = 1.0f / (pz * pz);
+      Vector6 v;
+      v[0] = z * gx + 0;
+      v[1] = 0 + z * gy;
+      v[2] = (-px * z_sqr) * gx + (-py * z_sqr) * gy;
+      v[3] = (-px * py * z_sqr) * gx + (-(1.0 + py * py * z_sqr)) * gy;
+      v[4] = (1.0 + px * px * z_sqr) * gx + (px * py * z_sqr) * gy;
+      v[5] = (-py * z) * gx + (px * z) * gy;
+
+      // step 6: integrate into A and b:
+      ls.update(v, r, *(buf_weight_p + i));
+    }
   }
   Vector6 result;
 
   // solve ls
   ls.finish();
   ls.solve(result);
+
+  //std::cout << result << std::endl;
 
   return result;
 }

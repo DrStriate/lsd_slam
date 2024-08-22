@@ -682,15 +682,14 @@ void Frame::buildGradients(int level)
     float *img_pt_max = data.image[level] + width * (height - 1) * channels;
       
     float dScale = 4.0f;
-    float dOffset = 0.0f;  
-    float gGain = 256.0f;
+    float gScale = 256.0f;
 
     for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++)
     {
-      *(((float*)gradxyii_pt) + 0) = img_pt[2] * gGain; // gx
-      *(((float*)gradxyii_pt) + 1) = img_pt[3] * gGain; // gy 
-      *(((float*)gradxyii_pt) + 2) = img_pt[0] * dScale + dOffset; // dx
-      *(((float*)gradxyii_pt) + 3) = img_pt[1] * dScale + dOffset; // dy
+      *(((float*)gradxyii_pt) + 0) = img_pt[2] * gScale; // gx
+      *(((float*)gradxyii_pt) + 1) = img_pt[3] * gScale; // gy 
+      *(((float*)gradxyii_pt) + 2) = img_pt[0] * dScale; // dx
+      *(((float*)gradxyii_pt) + 3) = img_pt[1] * dScale; // dy
     }
   }
 
