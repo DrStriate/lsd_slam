@@ -165,6 +165,10 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
   diverged = false;
   trackingWasGood = true;
 
+  Eigen::Matrix3f KLvl = frame->K(QUICK_KF_CHECK_LVL);
+  float fx_l = KLvl(0, 0);
+  float fy_l = KLvl(1, 1);
+
   callOptimized(calcResidualAndBuffers,
                 (reference->permaRef_posData, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts, frame,
                  referenceToFrame, QUICK_KF_CHECK_LVL, false));
@@ -185,7 +189,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
 
   for (int iteration = 0; iteration < settings.maxItsTestTrack; iteration++)
   {
-    callOptimized(calculateWarpUpdate, (ls));
+    callOptimized(calculateWarpUpdate, (ls, fx_l, fy_l));
 
     int incTry = 0;
     while (true)
@@ -303,6 +307,10 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
 
     reference->makePointCloud(lvl);
 
+    Eigen::Matrix3f KLvl = frame->K(lvl);
+    float fx_l = KLvl(0, 0);
+    float fy_l = KLvl(1, 1);
+
     callOptimized(calcResidualAndBuffers,
                   (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
                    SE3TRACKING_MIN_LEVEL == lvl ? reference->pointPosInXYGrid[lvl] : 0, reference->numData[lvl], frame,
@@ -327,7 +335,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
 
     for (int iteration = 0; iteration < settings.maxItsPerLvl[lvl]; iteration++)
     {
-      callOptimized(calculateWarpUpdate, (ls));
+      callOptimized(calculateWarpUpdate, (ls, fx_l, fy_l));
 
       numCalcWarpUpdateCalls[lvl]++;
 
@@ -912,12 +920,14 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
 
     if (isDisplacement)
     {
-      *(buf_warped_dx + idx) = resInterp[2] * fx_l;   // Displacement model uses Displacement and Disparity 2D vects
-      *(buf_warped_dy + idx) = resInterp[3] * fy_l; 
+      float wt_x = fabs((*gradData)[0]) > 0 ? (*gradData)[0] * resInterp[0] / ((*gradData)[0] + resInterp[0]) : 0.0f;
+      float wt_y = fabs((*gradData)[1]) > 0 ? (*gradData)[1] * resInterp[1] / ((*gradData)[1] + resInterp[1]) : 0.0f;
+      *(buf_warped_dx + idx) = wt_x;   // Displacement model uses Displacement and Disparity 2D vects
+      *(buf_warped_dy + idx) = wt_y; 
       *(buf_warped_residual + idx) = residual;  
-      // *(buf_warped_residual_x + idx) = Dx;
-      // *(buf_warped_residual_y + idx) = Dy;
-    }
+      *(buf_warped_residual_x + idx) = Dx;
+      *(buf_warped_residual_y + idx) = Dy;
+    } 
     else
     {
       *(buf_warped_dx + idx) = fx_l * resInterp[0];   // Greyscale uses image gradients and intensity diffs   
@@ -1213,22 +1223,22 @@ Vector6 SE3Tracker::calculateWarpUpdateNEON(NormalEquationsLeastSquares& ls)
 }
 #endif
 
-Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls)
+Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l)
 {
   //	weightEstimator.reset();
   //	weightEstimator.estimateDistribution(buf_warped_residual, buf_warped_size);
   //	weightEstimator.calcWeights(buf_warped_residual, buf_warped_weights, buf_warped_size);
   //
-  if (false)//isDisplacement)
+  if (isDisplacement)
   {
     ls.initialize(width * height * 2);
     for (int i = 0; i < buf_warped_size; i++)
     {
-      float px = *(buf_warped_x + i);
-      float py = *(buf_warped_y + i);
-      float pz = *(buf_warped_z + i);
-      float dx = *(buf_warped_dx + i);
-      float dy = *(buf_warped_dy + i);
+      float pz = *(buf_warped_z + i);  
+      float u = *(buf_warped_x + i) / pz;;// * fx_l;
+      float v = *(buf_warped_y + i) / pz;// * fy_l;
+      float wx = *(buf_warped_dx + i);
+      float wy = *(buf_warped_dy + i);
       float rDx = *(buf_warped_residual_x + i);
       float rDy = *(buf_warped_residual_y + i);
 
@@ -1238,23 +1248,23 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls)
 
       // rDx errors
       Vector6 Jx;
-      Jx[0] = z * dx;
+      Jx[0] = 1.0f;
       Jx[1] = 0;
-      Jx[2] = (-px * z_sqr) * dx;
-      Jx[3] = (-px * py * z_sqr) * dx;
-      Jx[4] = (1.0 + px * px * z_sqr) * dx;
-      Jx[5] = (-py * z) * dx;
+      Jx[2] = -u;
+      Jx[3] = -u * v;
+      Jx[4] = 1.0 + u * u;
+      Jx[5] = v ;
 
-      ls.update(Jx, -rDx, *(buf_weight_p + i));
+      ls.update(Jx, -rDx, *(buf_weight_p + i)); // Need to add wx, wy
 
       // rDxy errors
       Vector6 Jy;
       Jy[0] = 0;
-      Jy[1] = z * dy;
-      Jy[2] = (-py * z_sqr) * dy;
-      Jy[3] = (-(1.0 + py * py * z_sqr)) * dy;
-      Jy[4] = (px * py * z_sqr) * dy;
-      Jy[5] = (px * z) * dy;
+      Jy[1] = 1.0f;
+      Jy[2] = -v;
+      Jy[3] = -(1.0 + v * v);
+      Jy[4] = u * v;
+      Jy[5] = u;  
 
       ls.update(Jy, -rDy, *(buf_weight_p + i));
     }

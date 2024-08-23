@@ -113,7 +113,7 @@ private:
   float calcWeightsAndResidualNEON(const Sophus::SE3f& referenceToFrame);
 #endif
 
-  Vector6 calculateWarpUpdate(NormalEquationsLeastSquares& ls);
+  Vector6 calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l);
 #if defined(ENABLE_SSE)
   Vector6 calculateWarpUpdateSSE(NormalEquationsLeastSquares& ls);
 #endif
