@@ -27,6 +27,8 @@ namespace lsd_slam
 RunningStats runningStats;
 
 bool isDisplacement = false;
+float displacementSigma = 6.0;
+
 bool autoRun = true;
 bool autoRunWithinFrame = true;
 

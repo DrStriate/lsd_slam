@@ -681,15 +681,15 @@ void Frame::buildGradients(int level)
     float *img_pt = data.image[level] + width * channels;
     float *img_pt_max = data.image[level] + width * (height - 1) * channels;
       
-    float dScale = 4.0f;
-    float gScale = 256.0f;
+    float gScale = 512.0f; // All LSD-SLAM validation based on image gradients derived from 8bpc (not float) images
+                          // Displacement variables based on float variances (max 1.0) need to address this
 
     for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++)
     {
       *(((float*)gradxyii_pt) + 0) = img_pt[2] * gScale; // gx
       *(((float*)gradxyii_pt) + 1) = img_pt[3] * gScale; // gy 
-      *(((float*)gradxyii_pt) + 2) = img_pt[0] * dScale; // dx
-      *(((float*)gradxyii_pt) + 3) = img_pt[1] * dScale; // dy
+      *(((float*)gradxyii_pt) + 2) = img_pt[0]; // dx
+      *(((float*)gradxyii_pt) + 3) = img_pt[1]; // dy
     }
   }
 

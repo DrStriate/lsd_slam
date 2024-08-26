@@ -75,6 +75,8 @@ public:
   bool trackingWasGood;
 
 private:
+  static inline float sqr(float x) { return x * x; }
+
   float* buf_warped_residual;
   float* buf_warped_residual_x;
   float* buf_warped_residual_y;
@@ -87,6 +89,8 @@ private:
   float* buf_d;
   float* buf_idepthVar;
   float* buf_weight_p;
+  float* buf_weight_px;
+  float* buf_weight_py;
 
   int buf_warped_size;
 
@@ -105,7 +109,7 @@ private:
                                    bool plotResidual = false);
 #endif
 
-  float calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame);
+  float calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, float fx_l, float fy_l);
 #if defined(ENABLE_SSE)
   float calcWeightsAndResidualSSE(const Sophus::SE3f& referenceToFrame);
 #endif

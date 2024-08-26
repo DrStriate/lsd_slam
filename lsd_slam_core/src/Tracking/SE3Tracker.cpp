@@ -72,6 +72,8 @@ SE3Tracker::SE3Tracker(int w, int h, Eigen::Matrix3f K)
   buf_d = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_idepthVar = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_weight_p = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
+  buf_weight_px = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
+  buf_weight_py = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
 
   buf_warped_size = 0;
 
@@ -109,6 +111,8 @@ SE3Tracker::~SE3Tracker()
   Eigen::internal::aligned_free((void*)buf_d);
   Eigen::internal::aligned_free((void*)buf_idepthVar);
   Eigen::internal::aligned_free((void*)buf_weight_p);
+  Eigen::internal::aligned_free((void*)buf_weight_px);
+  Eigen::internal::aligned_free((void*)buf_weight_py);
 }
 
 // tracks a frame.
@@ -183,7 +187,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
     affineEstimation_a = affineEstimation_a_lastIt;
     affineEstimation_b = affineEstimation_b_lastIt;
   }
-  float lastErr = callOptimized(calcWeightsAndResidual, (referenceToFrame));
+  float lastErr = callOptimized(calcWeightsAndResidual, (referenceToFrame, fx_l, fy_l));
 
   float LM_lambda = settings.lambdaInitialTestTrack;
 
@@ -216,7 +220,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
         trackingWasGood = false;
         return SE3();
       }
-      float error = callOptimized(calcWeightsAndResidual, (new_referenceToFrame));
+      float error = callOptimized(calcWeightsAndResidual, (new_referenceToFrame, fx_l, fx_l));
 
       // accept inc?
       if (error < lastErr)
@@ -327,7 +331,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
       affineEstimation_a = affineEstimation_a_lastIt;
       affineEstimation_b = affineEstimation_b_lastIt;
     }
-    float lastErr = callOptimized(calcWeightsAndResidual, (referenceToFrame));
+    float lastErr = callOptimized(calcWeightsAndResidual, (referenceToFrame, fx_l, fy_l));
 
     numCalcResidualCalls[lvl]++;
 
@@ -368,7 +372,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
           return SE3();
         }
 
-        float error = callOptimized(calcWeightsAndResidual, (new_referenceToFrame));
+        float error = callOptimized(calcWeightsAndResidual, (new_referenceToFrame, fx_l, fy_l));
         numCalcResidualCalls[lvl]++;
 
         // accept inc?
@@ -678,8 +682,8 @@ float SE3Tracker::calcWeightsAndResidualNEON(const Sophus::SE3f& referenceToFram
     float pz = *(buf_warped_z + i);                        // z'
     float d = *(buf_d + i);                                // d
     float rp = *(buf_warped_residual + i);                 // r_p
-    float gx = *(buf_warped_dx + i);                       // \delta_x I
-    float gy = *(buf_warped_dy + i);                       // \delta_y I
+    float gx = *(buf_warped_dx + i);                       // \delta_x I = gx * fxl
+    float gy = *(buf_warped_dy + i);                       // \delta_y I = gy * fyl
     float s = settings.var_weight * *(buf_idepthVar + i);  // \sigma_d^2
 
     // calc dw/dd (first 2 components):
@@ -701,8 +705,8 @@ float SE3Tracker::calcWeightsAndResidualNEON(const Sophus::SE3f& referenceToFram
   return sumRes / buf_warped_size;
 }
 #endif
-
-float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame)
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, float fx_l, float fy_l)
 {
   float tx = referenceToFrame.translation()[0];
   float ty = referenceToFrame.translation()[1];
@@ -716,26 +720,63 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame)
     float py = *(buf_warped_y + i);                        // y'
     float pz = *(buf_warped_z + i);                        // z'
     float d = *(buf_d + i);                                // d
-    float rp = *(buf_warped_residual + i);                 // r_p
-    float gx = *(buf_warped_dx + i);                       // \delta_x I
-    float gy = *(buf_warped_dy + i);                       // \delta_y I
+
     float s = settings.var_weight * *(buf_idepthVar + i);  // \sigma_d^2
 
-    // calc dw/dd (first 2 components):
-    float g0 = (tx * pz - tz * px) / (pz * pz * d);
-    float g1 = (ty * pz - tz * py) / (pz * pz * d);
+    if (false) //isDisplacement)
+    {
+      float rpx = *(buf_warped_residual_x + i); // r_px
+      float rpy = *(buf_warped_residual_y + i); // r_py
+      
+      float gx = *(buf_warped_dx + i) * fx_l;       // \delta_x I gx
+      float gy = *(buf_warped_dy + i) * fy_l;       // \delta_y I gy
 
-    // calc w_p
-    float drpdd = gx * g0 + gy * g1;  // ommitting the minus
-    float w_p = 1.0f / ((cameraPixelNoise2) + s * drpdd * drpdd);
+      // calc dw/dd (first 2 components):
+      float g0 = (tx * pz - tz * px) / (pz * pz * d);
+      float g1 = (ty * pz - tz * py) / (pz * pz * d);
 
-    float weighted_rp = fabs(rp * sqrtf(w_p));
+      // calc w_px and wp_y
+      float drpdd_x = gx * g0;
+      float drpdd_y = gy * g1; // ommitting the minus
 
-    float wh = fabs(weighted_rp < (settings.huber_d / 2) ? 1 : (settings.huber_d / 2) / weighted_rp);
+      float w_px = 1.0f / ((cameraPixelNoise2) + s * drpdd_x);
+      float w_py = 1.0f / ((cameraPixelNoise2) + s * drpdd_y);
 
-    sumRes += wh * w_p * rp * rp;
+      float weighted_rpx = fabs(rpx * sqrtf(w_px));
+      float weighted_rpy = fabs(rpy * sqrtf(w_py));
 
-    *(buf_weight_p + i) = wh * w_p;
+      float whx = fabs(weighted_rpx < (settings.huber_d / 2) ? 1 : (settings.huber_d / 2) / weighted_rpx);
+      float why = fabs(weighted_rpy < (settings.huber_d / 2) ? 1 : (settings.huber_d / 2) / weighted_rpy);
+
+      sumRes += whx * w_px * rpx * rpy +
+                why * w_py * rpx * rpy;
+
+      *(buf_weight_px + i) = whx * w_px;
+      *(buf_weight_py + i) = why * w_py;
+
+    }
+    else
+    {
+      float rp = *(buf_warped_residual + i);                 // r_p
+      float gx = *(buf_warped_dx + i);                       // \delta_x I gx * fxl 
+      float gy = *(buf_warped_dy + i);                       // \delta_y I gy * fyl
+
+      // calc dw/dd (first 2 components):
+      float g0 = (tx * pz - tz * px) / (pz * pz * d);
+      float g1 = (ty * pz - tz * py) / (pz * pz * d);
+
+      // calc w_p
+      float drpdd = gx * g0 + gy * g1;  // ommitting the minus
+      float w_p = 1.0f / ((cameraPixelNoise2) + s * drpdd * drpdd);
+
+      float weighted_rp = fabs(rp * sqrtf(w_p));
+
+      float wh = fabs(weighted_rp < (settings.huber_d / 2) ? 1 : (settings.huber_d / 2) / weighted_rp);
+
+      sumRes += wh * w_p * rp * rp;
+
+      *(buf_weight_p + i) = wh * w_p;
+    }
   }
 
   return sumRes / buf_warped_size;
@@ -874,6 +915,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     }
 
     float residual, Dx, Dy;
+    bool isGood;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
     if (isDisplacement)
@@ -887,6 +929,10 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       Dy = d1y - d2y;
 
       residual = sqrt(Dx * Dx + Dy * Dy);
+      // isGood =
+      //   (sqr(Dx) + sqr(Dy))/ //< sqr(displacementSigma * 3.0f);
+      //         (MAX_DIFF_CONSTANT + MAX_DIFF_GRAD_MULT * (resInterp[0] * resInterp[0] + resInterp[1] * resInterp[1])) <
+      //     1;
     }
     else
     {
@@ -900,9 +946,14 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       sx += c1 * weight;
       sy += c2 * weight;
       sw += weight;
+
+      // isGood =
+      //     residual * residual /
+      //         (MAX_DIFF_CONSTANT + MAX_DIFF_GRAD_MULT * (resInterp[0] * resInterp[0] + resInterp[1] * resInterp[1])) <
+      //     1;
     }
 
-    bool isGood =
+    isGood =
         residual * residual /
             (MAX_DIFF_CONSTANT + MAX_DIFF_GRAD_MULT * (resInterp[0] * resInterp[0] + resInterp[1] * resInterp[1])) <
         1;
@@ -930,9 +981,9 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     } 
     else
     {
-      *(buf_warped_dx + idx) = fx_l * resInterp[0];   // Greyscale uses image gradients and intensity diffs   
+      *(buf_warped_dx + idx) = fx_l * resInterp[0];    
       *(buf_warped_dy + idx) = fy_l * resInterp[1];   
-      *(buf_warped_residual + idx) = residual;
+      *(buf_warped_residual + idx) = residual;        // LSD-SLAM uses 1D intensity difference residuals
     }
 
     *(buf_d + idx) = 1.0f / (*refPoint)[2];

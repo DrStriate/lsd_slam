@@ -154,6 +154,7 @@ namespace lsd_slam
 // settings variables
 // controlled via keystrokes
 extern bool isDisplacement;
+extern float displacementSigma;
 extern bool autoRun;
 extern bool autoRunWithinFrame;
 extern int debugDisplay;
