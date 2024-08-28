@@ -928,6 +928,11 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       float d2y = resInterp[3];
       Dy = d1y - d2y;
 
+      // printf("Ref Lap: n/a, gx: %f, gy: %f\n", (*gradData)[0] , (*gradData)[1]);
+      // printf("Frame Lap: n/a, gx: %f, gy: %f\n", resInterp[0], resInterp[1]);
+      // printf("Ref dx %f, dy, %f\n", (*gradData)[2], (*gradData)[3]);
+      // printf("Frame dx %f, dy, %f\n", resInterp[2], resInterp[3]);
+
       residual = sqrt(Dx * Dx + Dy * Dy);
       // isGood =
       //   (sqr(Dx) + sqr(Dy))/ //< sqr(displacementSigma * 3.0f);
@@ -978,6 +983,8 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       *(buf_warped_residual + idx) = residual;  
       *(buf_warped_residual_x + idx) = Dx;
       *(buf_warped_residual_y + idx) = Dy;
+
+      //printf("Dx: %f, Dy: %f. wt_x: %f, wt_y: %f\n", Dx, Dy, wt_x, wt_y);
     } 
     else
     {
