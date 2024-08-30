@@ -17,6 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with LSD-SLAM. If not, see <http://www.gnu.org/licenses/>.
  */
+#define sigmaBounds 3.0f
 
 #include "SE3Tracker.h"
 #include <opencv2/highgui/highgui.hpp>
@@ -339,6 +340,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
 
     for (int iteration = 0; iteration < settings.maxItsPerLvl[lvl]; iteration++)
     {
+      // std::cout << "level\n" << lvl;
       callOptimized(calculateWarpUpdate, (ls, fx_l, fy_l));
 
       numCalcWarpUpdateCalls[lvl]++;
@@ -860,6 +862,23 @@ float SE3Tracker::calcResidualAndBuffersNEON(const Eigen::Vector3f* refPoint, co
 }
 #endif
 
+std::pair<float, float> SE3Tracker::calculateDisplacement(float laplacian, float gx, float gy, float levelSigma)
+{ 
+  std::pair<float, float> displacement (0, 0);
+  auto gradientMagSq = sqr(gx) + sqr(gy);
+  if (gradientMagSq >= FLT_EPSILON)
+  {
+    auto dx = sqr(levelSigma) * laplacian / gradientMagSq * gx;
+    auto dy = sqr(levelSigma) * laplacian / gradientMagSq * gy;
+    if (sqr(dx) + sqr(dy) < sqr(sigmaBounds * levelSigma))
+    {
+      displacement.first = dx;
+      displacement.second = dy;
+    }
+  }
+  return displacement;
+}
+
 float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
                                          int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                          bool plotResidual)
@@ -914,25 +933,44 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       continue;
     }
 
-    float residual, Dx, Dy;
+    float residual, Dx = 0.0f, Dy = 0.0f, wt_x = 0.0f, wt_y = 0.0f;
     bool isGood;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
+    float mipSigma = 0.5f;
     if (isDisplacement)
     {
-      float d1x = (*gradData)[2];
-      float d2x = resInterp[2];
-      Dx = d1x - d2x;
+      float levelSigma [5] = {
+        displacementSigma, 
+        displacementSigma / 2.0f + mipSigma, 
+        displacementSigma / 4.0f + mipSigma, 
+        displacementSigma / 8.0f + mipSigma, 
+        displacementSigma / 16.0f + mipSigma};
+      float rgx = (*gradData)[0] / gradientGain; //reverse preprocess gain applied in Frame.cpp
+      float rgy = (*gradData)[1] / gradientGain;
+      float fgx = resInterp[0] / gradientGain;
+      float fgy = resInterp[1] / gradientGain;
+      auto d1 = calculateDisplacement((*gradData)[2], rgx, rgy, levelSigma[level]);
+      auto d2 = calculateDisplacement(resInterp[2], fgx, fgy, levelSigma[level]);
+      
+      const float g1MagSq = sqr(rgx) + sqr(rgy);
+      const float g2MagSq = sqr(fgx) + sqr(fgy);
+      if (g1MagSq > 0 && g2MagSq > 0 && (rgx * fgx + rgy * fgy) > 0)
+      {
+        Dx = d1.first - d2.first;
+        Dy = d1.second - d2.second;
 
-      float d1y = (*gradData)[3];
-      float d2y = resInterp[3];
-      Dy = d1y - d2y;
+        wt_x = (fabs (fgx + rgx) > FLT_EPSILON? (fgx * rgx) / (fgx + rgx) : 0.0f);
+        wt_y = (fabs (fgy + rgy) > FLT_EPSILON? (fgy * rgy) / (fgy + rgy) : 0.0f);
+      }
 
-      // printf("Ref Lap: n/a, gx: %f, gy: %f\n", (*gradData)[0] , (*gradData)[1]);
-      // printf("Frame Lap: n/a, gx: %f, gy: %f\n", resInterp[0], resInterp[1]);
-      // printf("Ref dx %f, dy, %f\n", (*gradData)[2], (*gradData)[3]);
-      // printf("Frame dx %f, dy, %f\n", resInterp[2], resInterp[3]);
-
+      // printf("Ref Lap: %f, gx: %f, gy: %f\n", (*gradData)[2], rgx, rgy);
+      // printf("Frame: level %i, u %f, v %f\n", level, u_new, v_new);
+      // printf("Frame Lap: %f, gx: %f, gy: %f\n", resInterp[2], fgx, fgy);
+      // printf("Ref dx %f, dy, %f\n", d1.first, d1.second);
+      // printf("Frame dx %f, dy, %f\n", d2.first, d2.second);
+      // printf("Dx: %f, Dy: %f. wt_x: %f, wt_y: %f\n", Dx, Dy, wt_x, wt_y);
+ 
       residual = sqrt(Dx * Dx + Dy * Dy);
       // isGood =
       //   (sqr(Dx) + sqr(Dy))/ //< sqr(displacementSigma * 3.0f);
@@ -974,17 +1012,13 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     *(buf_warped_y + idx) = Wxp(1);
     *(buf_warped_z + idx) = Wxp(2);
 
-    if (isDisplacement)
+    if (isDisplacement)  
     {
-      float wt_x = fabs((*gradData)[0]) > 0 ? (*gradData)[0] * resInterp[0] / ((*gradData)[0] + resInterp[0]) : 0.0f;
-      float wt_y = fabs((*gradData)[1]) > 0 ? (*gradData)[1] * resInterp[1] / ((*gradData)[1] + resInterp[1]) : 0.0f;
-      *(buf_warped_dx + idx) = wt_x;   // Displacement model uses Displacement and Disparity 2D vects
+      *(buf_warped_dx + idx) = wt_x;   // Displacement model uses gradients and Disparity 2D vects
       *(buf_warped_dy + idx) = wt_y; 
-      *(buf_warped_residual + idx) = residual;  
       *(buf_warped_residual_x + idx) = Dx;
       *(buf_warped_residual_y + idx) = Dy;
-
-      //printf("Dx: %f, Dy: %f. wt_x: %f, wt_y: %f\n", Dx, Dy, wt_x, wt_y);
+      *(buf_warped_residual + idx) = residual;        // Still using LSD-SLAM 1D Weighting
     } 
     else
     {
@@ -1292,14 +1326,14 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
     ls.initialize(width * height * 2);
     for (int i = 0; i < buf_warped_size; i++)
     {
-      float pz = *(buf_warped_z + i);  
-      float u = *(buf_warped_x + i) * fx_l / pz;
-      float v = *(buf_warped_y + i) * fy_l / pz;
+      float pz = *(buf_warped_z + i);
+      float u = *(buf_warped_x + i) / pz * fx_l;
+      float v = *(buf_warped_y + i) / pz * fy_l;
+
       float wx = *(buf_warped_dx + i);
       float wy = *(buf_warped_dy + i);
       float rDx = *(buf_warped_residual_x + i);
       float rDy = *(buf_warped_residual_y + i);
-
 
       // rDx errors
       Vector6 Jx;
@@ -1311,6 +1345,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Jx[5] = -v ;
 
       ls.update(Jx, -rDx, *(buf_weight_p + i)); // Need to add wx, wy
+      // std::cout << "Jx:\n" << Jx << std::endl;
+      // printf("Dx:\n%f\nW:\n%f\n", rDx, *(buf_weight_p + i));
 
       // rDxy errors
       Vector6 Jy;
@@ -1322,6 +1358,9 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Jy[5] = u;  
 
       ls.update(Jy, -rDy, *(buf_weight_p + i));
+      // std::cout << "Jy:\n" << Jy << std::endl;
+      // printf("rDy:\n%f\nW:\n%f\n", rDy, *(buf_weight_p + i));
+      // printf("\n");
     }
   }
   else
@@ -1348,6 +1387,10 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
 
       // step 6: integrate into A and b:
       ls.update(v, r, *(buf_weight_p + i));
+      // std::cout << "J:\n" << v << std::endl;
+      // printf("r:\n%f\nW:\n%f\n", r, *(buf_weight_p + i));
+      // printf("\n");
+      // exit(0);
     }
   }
   Vector6 result;
@@ -1356,9 +1399,9 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   ls.finish();
   ls.solve(result);
 
-  //std::cout << result << std::endl;
+  //std::cout << "delta T:\n" << result << std::endl << std::endl;
 
-  return result;
+  return result;  
 }
 
 }  // namespace lsd_slam

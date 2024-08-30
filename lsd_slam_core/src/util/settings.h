@@ -151,10 +151,14 @@ namespace lsd_slam
 
 #define MIN_NUM_MAPPED 5
 
-// settings variables
-// controlled via keystrokes
+// Displacement processing settings
 extern bool isDisplacement;
 extern float displacementSigma;
+extern float gradientGain;
+extern float laplacianGain;
+
+// settings variables
+// controlled via keystrokes
 extern bool autoRun;
 extern bool autoRunWithinFrame;
 extern int debugDisplay;

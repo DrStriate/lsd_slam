@@ -23,6 +23,7 @@
 #include <Eigen/Eigenvalues>
 #include <Eigen/SVD>
 #include <stdio.h>
+#include <iostream>
 
 namespace lsd_slam
 {
@@ -79,6 +80,9 @@ void NormalEquationsLeastSquares::finishNoDivide()
 void NormalEquationsLeastSquares::solve(Vector6& x)
 {
   x = A.ldlt().solve(b);
+
+  // std::cout << "A\n" << A << std::endl;
+  // std::cout << "b\n" << b << std::endl; 
   solved = true;
 }
 

@@ -93,6 +93,8 @@ private:
   float* buf_weight_py;
 
   int buf_warped_size;
+  
+  std::pair<float, float> calculateDisplacement(float laplacian, float gx, float gy, float levelSigma);
 
   float calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
                                int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,

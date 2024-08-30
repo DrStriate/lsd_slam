@@ -58,17 +58,19 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
   memcpy(data.image[0], image, data.width[0] * data.height[0] * sizeof(float) * channels);
   data.imageValid[0] = true;
 
+  // float* img_pt = data.image[0] + ((height / 2) * width + (width / 2) * channels);
+  // printf("Mid gx lvl 0) lap: %f, gx: %f, gy: %f\n", img_pt[0], img_pt[1], img_pt[2]);
+
   if (isDisplacement)
   {
         // Now place the image data contiguously in the beginning of the displacementImage buffer 
     data.displacementImage = FrameMemory::getInstance().getFloatBuffer(width * height);
     float* src_pt = data.image[0];
     float* dst_pt = data.displacementImage;
-    float dScale = 14.0f; 
     float dOffset = 128.0f;
     for (int i = 0; i < width * height; i++)
     {
-      *dst_pt = *src_pt * dScale + dOffset;
+      *dst_pt = *src_pt * laplacianGain + dOffset;
       // if (i == height / 2 * width + width / 2 )
       //   printf(" P: %f, ", *dst_pt);
       dst_pt += 1;
@@ -676,23 +678,25 @@ void Frame::buildGradients(int level)
       val_00 = val_p1;
     }
   }
-  else // displacement gradient data
+  else // displacement laplacian & gradient data
   {
     int channels = 4;
     float *img_pt = data.image[level] + width * channels;
     float *img_pt_max = data.image[level] + width * (height - 1) * channels;
       
-    float gScale = 512.0f; // All LSD-SLAM validation based on image gradients derived from 8bpc (not float) images
-                          // Displacement variables based on float variances (max 1.0) need to address this
-
+    // All LSD-SLAM validation based on image gradients derived from 8bpc (not float) images
+    // Displacement variables based on float variances (max 1.0) need to address this
+    int img_mid_idx = (height / 2) * width + width / 2;
     int idx = 0;
-    const int img_mid_idx = (width * height / 2) + width / 2;
     for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++, idx++)
     {
-      *(((float*)gradxyii_pt) + 0) = img_pt[2] * gScale; // gx
-      *(((float*)gradxyii_pt) + 1) = img_pt[3] * gScale; // gy 
-      *(((float*)gradxyii_pt) + 2) = img_pt[0]; // dx
-      *(((float*)gradxyii_pt) + 3) = img_pt[1]; // dy
+      *(((float*)gradxyii_pt) + 0) = img_pt[1] * gradientGain; // gx
+      *(((float*)gradxyii_pt) + 1) = img_pt[2] * gradientGain; // gy 
+      *(((float*)gradxyii_pt) + 2) = img_pt[0]; // Laplacian
+      *(((float*)gradxyii_pt) + 3) = 0;
+
+      // if (idx == img_mid_idx)
+      //  printf("Mid gx lvl %i) Lap: %f, gx: %f, gy: %f\n", level, img_pt[0], img_pt[1], img_pt[2]);
     }
   }
 
