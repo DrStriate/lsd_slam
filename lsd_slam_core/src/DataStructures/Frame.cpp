@@ -693,8 +693,6 @@ void Frame::buildGradients(int level)
       *(((float*)gradxyii_pt) + 1) = img_pt[3] * gScale; // gy 
       *(((float*)gradxyii_pt) + 2) = img_pt[0]; // dx
       *(((float*)gradxyii_pt) + 3) = img_pt[1]; // dy
-      if (idx == img_mid_idx)
-        printf("Mid gx lvl %i: %f, gy: %f, dx: %f, dy: %f\n", level, img_pt[2], img_pt[3], img_pt[0], img_pt[1]);
     }
   }
 
