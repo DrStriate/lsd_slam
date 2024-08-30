@@ -1293,9 +1293,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
     for (int i = 0; i < buf_warped_size; i++)
     {
       float pz = *(buf_warped_z + i);  
-      float z = 1.0f;// / pz;
-      float u = *(buf_warped_x + i) / pz;;// * fx_l;
-      float v = *(buf_warped_y + i) / pz;// * fy_l;
+      float u = *(buf_warped_x + i) * fx_l / pz;
+      float v = *(buf_warped_y + i) * fy_l / pz;
       float wx = *(buf_warped_dx + i);
       float wy = *(buf_warped_dy + i);
       float rDx = *(buf_warped_residual_x + i);
@@ -1304,9 +1303,9 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
 
       // rDx errors
       Vector6 Jx;
-      Jx[0] = z;
+      Jx[0] = fx_l / pz;
       Jx[1] = 0;
-      Jx[2] = -u * z;
+      Jx[2] = -u * fx_l / pz;
       Jx[3] = -u * v;
       Jx[4] = 1.0 + u * u;
       Jx[5] = -v ;
@@ -1316,8 +1315,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       // rDxy errors
       Vector6 Jy;
       Jy[0] = 0;
-      Jy[1] = z;
-      Jy[2] = -v * z;
+      Jy[1] = fy_l / pz;
+      Jy[2] = -v * fy_l / pz;
       Jy[3] = -(1.0 + v * v);
       Jy[4] = u * v;
       Jy[5] = u;  
