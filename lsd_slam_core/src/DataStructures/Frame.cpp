@@ -690,8 +690,8 @@ void Frame::buildGradients(int level)
     int idx = 0;
     for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++, idx++)
     {
-      *(((float*)gradxyii_pt) + 0) = img_pt[1] * gradientGain; // gx
-      *(((float*)gradxyii_pt) + 1) = img_pt[2] * gradientGain; // gy 
+      *(((float*)gradxyii_pt) + 0) = img_pt[1]; // gx
+      *(((float*)gradxyii_pt) + 1) = img_pt[2]; // gy 
       *(((float*)gradxyii_pt) + 2) = img_pt[0]; // Laplacian
       *(((float*)gradxyii_pt) + 3) = 0;
 

@@ -134,8 +134,8 @@ namespace lsd_slam
 #define MIN_EPL_ANGLE_SQUARED (0.3f * 0.3f)
 
 // abs. grad at that location needs to be larger than this.
-#define MIN_ABS_GRAD_CREATE (minUseGrad)
-#define MIN_ABS_GRAD_DECREASE (minUseGrad)
+#define MIN_ABS_GRAD_CREATE (isDisplacement? minUseGrad / 256.0f : minUseGrad)
+#define MIN_ABS_GRAD_DECREASE (isDisplacement? minUseGrad / 256.0f : minUseGrad)
 
 // ============== RE-LOCALIZATION, KF-REACTIVATION etc. ======================
 // defines the level on which we do the quick tracking-check for relocalization.
@@ -154,7 +154,6 @@ namespace lsd_slam
 // Displacement processing settings
 extern bool isDisplacement;
 extern float displacementSigma;
-extern float gradientGain;
 extern float laplacianGain;
 
 // settings variables

@@ -28,7 +28,6 @@ RunningStats runningStats;
 
 bool isDisplacement = false;
 float displacementSigma = 3.0f;
-float gradientGain = 256.0f;  // Prefilter gain applied in Frame.cpp (byte 255 vs float 1.0f)
 float laplacianGain = 10000.0f; // for display of laplacians (vs image) in Frame.cpp
 
 bool autoRun = true;
