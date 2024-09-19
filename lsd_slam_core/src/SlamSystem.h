@@ -232,6 +232,13 @@ private:
                       Sim3 candidateToFrame_initialEstimate, float strictness);
 
   void optimizationThreadLoop();
+
+  std::pair<float, float> uvFromXY(float X, float Y, float Z, float fl_x, float fl_y, int level = 0)
+  {
+    float U = fl_x / Z * X * (float)(1 << level);
+    float V = fl_y / Z * Y * (float)(1 << level);
+    return std::pair<float, float>(U, V);
+  };
 };
 
 }  // namespace lsd_slam

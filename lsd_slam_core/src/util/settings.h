@@ -145,7 +145,7 @@ namespace lsd_slam
 
 #define MIN_GOODPERGOODBAD_PIXEL (0.5f)
 #define MIN_GOODPERALL_PIXEL (0.04f)
-#define MIN_GOODPERALL_PIXEL_ABSMIN (0.01f)
+#define MIN_GOODPERALL_PIXEL_ABSMIN (0.001f) // 0.001f for test rect
 
 #define INITIALIZATION_PHASE_COUNT 5
 

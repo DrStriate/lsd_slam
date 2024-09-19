@@ -129,6 +129,13 @@ private:
   Vector6 calculateWarpUpdateNEON(NormalEquationsLeastSquares& ls);
 #endif
 
+  std::pair<float, float> uvFromXY(float X, float Y, float Z, float fl_x, float fl_y, int level = 0)
+  {
+    float U = fl_x / Z * X * (float)(1 << level);
+    float V = fl_y / Z * Y * (float)(1 << level);
+    return std::pair<float, float>(U, V);
+  };
+
   void calcResidualAndBuffers_debugStart();
   void calcResidualAndBuffers_debugFinish(int w);
 
