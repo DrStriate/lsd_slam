@@ -320,6 +320,15 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
     Eigen::Matrix3f KLvl = frame->K(lvl);
     float fx_l = KLvl(0, 0);
     float fy_l = KLvl(1, 1);
+    float cx_l = KLvl(0, 2);
+    float cy_l = KLvl(1, 2);
+
+    if (displacementDebug)
+    {
+      std::cout << "level " << lvl << std::endl;
+      std::cout << "cx_l: " << cx_l << ", cy_l: " << cy_l << std::endl;
+      std::cout << "fx_l: " << fx_l << ", fy_l: " << fy_l << std::endl;
+    }
 
     callOptimized(calcResidualAndBuffers,
                   (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
@@ -345,7 +354,6 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
 
     for (int iteration = 0; iteration < settings.maxItsPerLvl[lvl]; iteration++)
     {
-      //std::cout << "level " << lvl << std::endl;
       callOptimized(calculateWarpUpdate, (ls, fx_l, fy_l));
 
       numCalcWarpUpdateCalls[lvl]++;
@@ -738,18 +746,18 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       // TO DO: Integrate lsd-slam weighting scheme with our weights gx, y
       float rpx = *(buf_warped_residual_x + i); // r_px (Dx)
       float rpy = *(buf_warped_residual_y + i); // r_py (Dy)
-      float gx = *(buf_warped_gx + i); // weights
-      float gy = *(buf_warped_gy + i);
-      float dx = *(buf_warped_dx + i); // displacements d(u,v)
-      float dy = *(buf_warped_dy + i);
+      float wx = *(buf_warped_gx + i); // weights
+      float wy = *(buf_warped_gy + i);
+      float dx = *(buf_warped_dx + i) / fx_l * pz; // displacements d(u,v) / fxl * pz
+      float dy = *(buf_warped_dy + i) / fy_l * pz;
 
       // calc dw/dd (first 2 components):
-      float g0 = (tx * pz - tz * px) / (pz * pz * d);
-      float g1 = (ty * pz - tz * py) / (pz * pz * d);
+      float g0 = (tx * pz - tz * px) / (pz * d);
+      float g1 = (ty * pz - tz * py) / (pz * d);
 
       // calc w_px and wp_y
-      float drpdd_x = gx * g0;
-      float drpdd_y = gy * g1;
+      float drpdd_x = dx * g0;
+      float drpdd_y = dy * g1;
 
       float w_px = 1.0f / (cameraPixelNoise2 /*/ (isDisplacement ? 256.0f * 256.0f : 1.0f)*/ + s * sqr(drpdd_x));
       float w_py = 1.0f / (cameraPixelNoise2 /*/ (isDisplacement ? 256.0f * 256.0f : 1.0f)*/ + s * sqr(drpdd_y));
@@ -763,8 +771,8 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       sumRes += whx * w_px * rpx * rpx +
                 why * w_py * rpy * rpy;
 
-      *(buf_weight_px + i) = gx;//whx * w_px;
-      *(buf_weight_py + i) = gy;//why * w_py;
+      *(buf_weight_px + i) = wx * whx * w_px;
+      *(buf_weight_py + i) = wy * why * w_py;
       //printf("Wx %f, Wy %f\n", *(buf_weight_px + i), *(buf_weight_py + i));
     }
     else
@@ -949,7 +957,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     bool isGood;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
-    float mipSigma = 0.5f;
+    float mipSigma = 1.0f;
     if (isDisplacement)
     {
       float levelSigma[5] = {
@@ -958,6 +966,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
           displacementSigma / 4.0f + mipSigma,
           displacementSigma / 8.0f + mipSigma,
           displacementSigma / 16.0f + mipSigma};
+          
       float rgx = (*gradData)[0];
       float rgy = (*gradData)[1];
       float fgx = resInterp[0];
@@ -1419,7 +1428,9 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   ls.finish();
   ls.solve(result);
 
-  //std::cout << "delta T:\n" << result << std::endl << std::endl;
+  if (displacementDebug)
+    std::cout << "Delta T:\n" << result << std::endl << std::endl;
+  
   return result;  
 }
 

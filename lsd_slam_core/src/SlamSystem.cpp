@@ -888,12 +888,16 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
   SE3 newRefToFrame_poseUpdate =
       tracker->trackFrame(trackingReference, trackingNewFrame.get(), frameToReference_initialEstimate);
 
-// Debug info for Displacement testing
-  // auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
-  // auto euler = q.toRotationMatrix().eulerAngles(0, 1, 2);
-  // std::cout << "Euler from quaternion in roll, pitch, yaw"<< std::endl << euler << std::endl;
-  // auto T = newRefToFrame_poseUpdate.translation();
-  // std::cout << "Translation" << std::endl << T << std::endl;
+  // Debug info for Displacement testing
+  if (displacementDebug)
+  {
+    std::cout << "newRefToFrame T:" << std::endl;
+    auto T = newRefToFrame_poseUpdate.translation();
+    std::cout << T << std::endl;
+    auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
+    auto euler = q.toRotationMatrix().eulerAngles(1, 2, 0);
+    std::cout << euler << std::endl;
+  }
 
   gettimeofday(&tv_end, NULL);
   msTrackFrame = 0.9 * msTrackFrame +

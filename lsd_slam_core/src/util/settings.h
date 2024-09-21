@@ -155,6 +155,7 @@ namespace lsd_slam
 extern bool isDisplacement;
 extern float displacementSigma;
 extern float laplacianGain;
+extern bool displacementDebug;
 
 // settings variables
 // controlled via keystrokes
