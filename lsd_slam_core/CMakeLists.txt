@@ -62,6 +62,10 @@ catkin_package(
 add_definitions("-DUSE_ROS")
 #add_definitions("-DENABLE_SSE")
 
+set(DISPLACEMENT_PATH 
+  "/home/steve/Projects/Displacements"
+)
+
 # Set source files
 set(lsd_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/DataStructures/Frame.cpp
@@ -109,6 +113,12 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/src/util
   ${PROJECT_SOURCE_DIR}/thirdparty/Sophus
   ${PROJECT_SOURCE_DIR}/thirdparty/Sophus/sophus
+  ${DISPLACEMENT_PATH}/Core/
+  ${DISPLACEMENT_PATH}/Common/
+)
+
+set(DISPLACEMENT_LIB 
+  ${DISPLACEMENT_PATH}/lib/libCore.so
 )
 
 # build shared library.
@@ -120,6 +130,7 @@ target_link_libraries(lsdslam
   ${OpenCV_LIBS}
   ${CHOLMOD_LIBRARY}
   ${CSPARSE_LIBRARY}
+  ${DISPLACEMENT_LIB}
 )
 
 # build live ros node

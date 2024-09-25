@@ -26,6 +26,7 @@
 #include "util/globalFuncs.h"
 #include "IOWrapper/ImageDisplay.h"
 #include "Tracking/least_squares.h"
+#include <disparityFn.h>
 
 #include <Eigen/Core>
 
@@ -974,49 +975,21 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       auto dr = calculateDisplacement((*gradData)[2], rgx, rgy, levelSigma[level]); // r - ref, f - frame
       auto df = calculateDisplacement(resInterp[2], fgx, fgy, levelSigma[level]);
 
-      float grMagSq = sqr(rgx) + sqr(rgy);
-      float grMag = sqrt(grMagSq);
-      float grHatx = rgx / grMag;
-      float grHaty = rgy / grMag;
-
-      float gfMagSq = sqr(fgx) + sqr(fgy);
-      float gfMag = sqrt(gfMagSq);
-      float gfHatx = fgx / gfMag;
-      float gfHaty = fgy / gfMag;
-
-      if (grMagSq > 0 && gfMagSq > 0 && (rgx * fgx + rgy * fgy) > 0)
+      const float d1[4]{dr.first, dr.second, rgx, rgy};
+      const float d2[4]{df.first, df.second, fgx, fgy};
+      std::vector<float> D; // ux, uy, D, wt
+      std::vector<float> W; // wu wv
+      std::vector<float> P; // pu pv
+      if (DisparityFn::getDisparityCoeffs((float *)&d1, (float *)&d2, u_new, v_new, D, W, P))
       {
-        float wt = (grMagSq * gfMagSq) / (grMagSq + gfMagSq); // * fmax(c0d, 0.0f);
-        float wtx = fabs(grHatx * wt); 
-        float wty = fabs(grHaty * wt); 
+        Dx = D[0] * D[2];
+        Dy = D[1] * D[2];
+        wt_x = W[0];
+        wt_y = W[1];
+        dx = df.first;
+        dy = df.second;
 
-        float Dispx = dr.first - df.first;
-        float Dispy = dr.second - df.second;
-
-        if ((Dispx * fgx + Dispy * fgy) < 0.0f)
-        {
-          gfHatx = -gfHatx;
-          gfHaty = -gfHaty; // Make D point in the same direction as g frame
-          df.first = -df.first;
-          df.second = -df.second;
-        }
-
-        float DMag = sqrt(sqr(Dispx) + sqr(Dispy));
-        float c0d = grHatx * gfHatx + grHaty * gfHaty;
-        float s0d = grHatx * gfHaty - grHaty * gfHatx;
-
-        const float minWeight = 0.0f; //0.000001f;
-        if (wt > minWeight)
-        { 
-          Dx = gfHatx * DMag; 
-          Dy = gfHaty * DMag; 
-          wt_x = wtx;
-          wt_y = wty;
-          dx = df.first;
-          dy = df.second;
-        }
-
-        isGood = DMag < 3 * displacementSigma;
+        isGood = D[2] < 3 * displacementSigma;
       }
     }
     else
