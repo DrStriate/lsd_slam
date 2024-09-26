@@ -975,12 +975,13 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       auto dr = calculateDisplacement((*gradData)[2], rgx, rgy, levelSigma[level]); // r - ref, f - frame
       auto df = calculateDisplacement(resInterp[2], fgx, fgy, levelSigma[level]);
 
-      const float d1[4]{dr.first, dr.second, rgx, rgy};
-      const float d2[4]{df.first, df.second, fgx, fgy};
+
+      const float4 d1{dr.first, dr.second, rgx, rgy};
+      const float4 d2{df.first, df.second, fgx, fgy};
       std::vector<float> D; // ux, uy, D, wt
       std::vector<float> W; // wu wv
       std::vector<float> P; // pu pv
-      if (DisparityFn::getDisparityCoeffs((float *)&d1, (float *)&d2, u_new, v_new, D, W, P))
+      if (DisparityFn::getDisparityCoeffs(d1, d2, u_new, v_new, D, W, P))
       {
         Dx = D[0] * D[2];
         Dy = D[1] * D[2];
