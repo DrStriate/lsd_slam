@@ -78,8 +78,6 @@ private:
   static inline float sqr(float x) { return x * x; }
 
   float* buf_warped_residual;
-  float* buf_warped_residual_x;
-  float* buf_warped_residual_y;
   float* buf_warped_dx;
   float* buf_warped_dy;
   float* buf_warped_gx;
@@ -87,6 +85,13 @@ private:
   float* buf_warped_x;
   float* buf_warped_y;
   float* buf_warped_z;
+
+  float* buf_warped_residual_u;
+  float* buf_warped_residual_v;
+  float* buf_warped_du;
+  float* buf_warped_dv;
+  float* buf_warped_wu;
+  float* buf_warped_wv;
 
   float* buf_d;
   float* buf_idepthVar;

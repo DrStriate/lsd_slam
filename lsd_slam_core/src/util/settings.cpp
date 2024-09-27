@@ -29,7 +29,7 @@ RunningStats runningStats;
 bool isDisplacement = false;
 float displacementSigma = 3.0f;
 float laplacianGain = 1e4f; // for display of laplacians (vs image) in Frame.cpp
-bool displacementDebug = true;
+bool displacementDebug = false;
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;
