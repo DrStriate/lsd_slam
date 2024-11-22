@@ -26,9 +26,9 @@ namespace lsd_slam
 {
 RunningStats runningStats;
 
-bool isDisplacement = false;
-float displacementSigma = 3.0f;
-float laplacianGain = 1e4f; // for display of laplacians (vs image) in Frame.cpp
+bool isDisplacement = true;
+float displacementSigma = 4.0f;
+float displacementGain = 3.0f; // to fool filters set to non gaussian gradients
 bool displacementDebug = false;
 
 bool autoRun = true;

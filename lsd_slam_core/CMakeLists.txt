@@ -58,6 +58,9 @@ catkin_package(
   CATKIN_DEPENDS libg2o
 )
 
+find_package(CUDA REQUIRED) #Depricated but needed for cuda linking
+SET(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} "-g -G")  # enable cuda-gdb
+
 # SSE flags
 add_definitions("-DUSE_ROS")
 #add_definitions("-DENABLE_SSE")
@@ -131,6 +134,7 @@ target_link_libraries(lsdslam
   ${CHOLMOD_LIBRARY}
   ${CSPARSE_LIBRARY}
   ${DISPLACEMENT_LIB}
+  ${CUDA_LIBRARIES}
 )
 
 # build live ros node

@@ -107,27 +107,19 @@ void LiveSLAMWrapper::newImageCallback(const cv::Mat& img, Timestamp imgTime)
 {
   ++imageSeqNumber;
   cv::Mat floatGrayImg;
-  isDisplacement = (img.channels() == 4);
-  
-  if (!isDisplacement)
-  {
-    // Convert image to grayscale, if necessary
-    cv::Mat grayImg;
-    if (img.channels() == 1)
-      grayImg = img;
-    else
-      cvtColor(img, grayImg, cv::COLOR_RGB2GRAY);
 
-    // Assert that we work with 8 bit images
-    assert(grayImg.elemSize() == 1);
-    assert(fx != 0 || fy != 0);
-
-    grayImg.convertTo(floatGrayImg, CV_32FC1);
-  }
+  // Convert image to grayscale, if necessary
+  cv::Mat grayImg;
+  if (img.channels() == 1)
+    grayImg = img;
   else
-  {
-    floatGrayImg = img;
-  }
+    cvtColor(img, grayImg, cv::COLOR_RGB2GRAY);
+
+  // Assert that we work with 8 bit images
+  assert(grayImg.elemSize() == 1);
+  assert(fx != 0 || fy != 0);
+
+  grayImg.convertTo(floatGrayImg, CV_32FC1);
 
   if (displacementDebugInfo)
     printf("imageSeqNumber: %i\n", imageSeqNumber);

@@ -110,7 +110,7 @@ void ROSImageStreamThread::vidCb(const sensor_msgs::ImageConstPtr img)
   if (!haveCalib)
     return;
 
-  cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img);
+  cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
 
   if (img->header.seq < (unsigned int)lastSEQ)
   {

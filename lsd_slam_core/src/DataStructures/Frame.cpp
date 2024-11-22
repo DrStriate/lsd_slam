@@ -17,12 +17,14 @@
  * You should have received a copy of the GNU General Public License
  * along with LSD-SLAM. If not, see <http://www.gnu.org/licenses/>.
  */
+#define sqr(x) ((x)*(x))
 
 #include "DataStructures/Frame.h"
 #include "DataStructures/FrameMemory.h"
 #include "DepthEstimation/DepthMapPixelHypothesis.h"
 #include "Tracking/TrackingReference.h"
-
+#include <displacementFn.h>
+#include <postProcess.h>
 namespace lsd_slam
 {
 int privateFrameAllocCount = 0;
@@ -46,42 +48,38 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
 
   if (enablePrintDebugInfo && printMemoryDebugInfo)
     printf("ALLOCATED frame %d, now there are %d\n", this->id(), privateFrameAllocCount);
-}
+  }
 
 Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double timestamp, const float* image)
 {
   initialize(id, width, height, K, timestamp);
-  int channels = (isDisplacement? 4 : 1);
 
-  int dataCount = width * height * channels;
-  data.image[0] = FrameMemory::getInstance().getFloatBuffer(dataCount * channels);
-  memcpy(data.image[0], image, data.width[0] * data.height[0] * sizeof(float) * channels);
+  data.image[0] = FrameMemory::getInstance().getFloatBuffer(data.width[0] * data.height[0]);
+  memcpy(data.image[0], image, data.width[0] * data.height[0] * sizeof(float));
+  
   data.imageValid[0] = true;
-
-  // float* img_pt = data.image[0] + ((height / 2) * width + (width / 2) * channels);
-  // printf("Mid gx lvl 0) lap: %f, gx: %f, gy: %f\n", img_pt[0], img_pt[1], img_pt[2]);
-
-  if (isDisplacement)
-  {
-        // Now place the image data contiguously in the beginning of the displacementImage buffer 
-    data.displacementImage = FrameMemory::getInstance().getFloatBuffer(width * height);
-    float* src_pt = data.image[0];
-    float* dst_pt = data.displacementImage;
-    float dOffset = 128.0f;
-    for (int i = 0; i < width * height; i++)
-    {
-      *dst_pt = *src_pt * laplacianGain + dOffset;
-      // if (i == height / 2 * width + width / 2 )
-      //   printf(" P: %f, ", *dst_pt);
-      dst_pt += 1;
-      src_pt += 4;
-    }
-  }
 
   privateFrameAllocCount++;
 
   if (enablePrintDebugInfo && printMemoryDebugInfo)
     printf("ALLOCATED frame %d, now there are %d\n", this->id(), privateFrameAllocCount);
+
+  // DISPLACEMENT MOD: Create gaussian pyramid in Frame
+   if (isDisplacement)
+   {
+    std::shared_ptr<LsdPyramids> lsdPyramids = std::make_shared<LsdPyramids>(
+      displacementSigma, 0, SE3TRACKING_MAX_LEVEL);
+    int levelWidth = data.width[0];
+    int levelHeight = data.height[0];
+    std::shared_ptr<Image<float>> sourceImage = std::make_shared<Image<float>>(levelWidth, levelHeight);
+    sourceImage->loadImageData(data.image[0]);//, 1.0f / displacementGain);
+    lsdPyramids->createPyramid(
+      data.lsdDisplacementPyramid,
+      data.image[0],
+      levelWidth,
+      levelHeight);
+    //PostProcess::displayImage(*data.lsdDisplacementPyramid[2], 1, 2);
+  }
 }
 
 Frame::~Frame()
@@ -512,49 +510,46 @@ void Frame::buildImage(int level)
   const float* source = data.image[level - 1];
 
   if (data.image[level] == 0)
-    data.image[level] = FrameMemory::getInstance().getFloatBuffer(data.width[level] * data.height[level] * (isDisplacement ? 4 : 1));
-  float *dest = data.image[level];
+    data.image[level] = FrameMemory::getInstance().getFloatBuffer(data.width[level] * data.height[level]);
+  float* dest = data.image[level];
 
 #if defined(ENABLE_SSE)
-  if (!isDisplacement) // ToDo: filter 4 channel image)
+  // I assume all all subsampled width's are a multiple of 8.
+  // if this is not the case, this still works except for the last * pixel, which will produce a segfault.
+  // in that case, reduce this loop and calculate the last 0-3 dest pixels by hand....
+  if (width % 8 == 0)
   {
-    // I assume all all subsampled width's are a multiple of 8.
-    // if this is not the case, this still works except for the last * pixel, which will produce a segfault.
-    // in that case, reduce this loop and calculate the last 0-3 dest pixels by hand....
-    if (width % 8 == 0)
+    __m128 p025 = _mm_setr_ps(0.25f, 0.25f, 0.25f, 0.25f);
+
+    const float *maxY = source + width * height;
+    for (const float *y = source; y < maxY; y += width * 2)
     {
-      __m128 p025 = _mm_setr_ps(0.25f, 0.25f, 0.25f, 0.25f);
-
-      const float *maxY = source + width * height;
-      for (const float *y = source; y < maxY; y += width * 2)
+      const float *maxX = y + width;
+      for (const float *x = y; x < maxX; x += 8)
       {
-        const float *maxX = y + width;
-        for (const float *x = y; x < maxX; x += 8)
-        {
-          // i am calculating four dest pixels at a time.
+        // i am calculating four dest pixels at a time.
 
-          __m128 top_left = _mm_load_ps((float *)x);
-          __m128 bot_left = _mm_load_ps((float *)x + width);
-          __m128 left = _mm_add_ps(top_left, bot_left);
+        __m128 top_left = _mm_load_ps((float *)x);
+        __m128 bot_left = _mm_load_ps((float *)x + width);
+        __m128 left = _mm_add_ps(top_left, bot_left);
 
-          __m128 top_right = _mm_load_ps((float *)x + 4);
-          __m128 bot_right = _mm_load_ps((float *)x + width + 4);
-          __m128 right = _mm_add_ps(top_right, bot_right);
+        __m128 top_right = _mm_load_ps((float *)x + 4);
+        __m128 bot_right = _mm_load_ps((float *)x + width + 4);
+        __m128 right = _mm_add_ps(top_right, bot_right);
 
-          __m128 sumA = _mm_shuffle_ps(left, right, _MM_SHUFFLE(2, 0, 2, 0));
-          __m128 sumB = _mm_shuffle_ps(left, right, _MM_SHUFFLE(3, 1, 3, 1));
+        __m128 sumA = _mm_shuffle_ps(left, right, _MM_SHUFFLE(2, 0, 2, 0));
+        __m128 sumB = _mm_shuffle_ps(left, right, _MM_SHUFFLE(3, 1, 3, 1));
 
-          __m128 sum = _mm_add_ps(sumA, sumB);
-          sum = _mm_mul_ps(sum, p025);
+        __m128 sum = _mm_add_ps(sumA, sumB);
+        sum = _mm_mul_ps(sum, p025);
 
-          _mm_store_ps(dest, sum);
-          dest += 4;
-        }
+        _mm_store_ps(dest, sum);
+        dest += 4;
       }
-
-      data.imageValid[level] = true;
-      return;
     }
+
+    data.imageValid[level] = true;
+    return;
   }
 #elif defined(ENABLE_NEON)
   // I assume all all subsampled width's are a multiple of 8.
@@ -608,18 +603,14 @@ void Frame::buildImage(int level)
     return;
   }
 #endif
-  int channels = (isDisplacement ? 4 : 1);
   const float *s;
   for (int y = 0; y < height - 1; y += 2)
   {
     for (int x = 0; x < width - 1; x += 2)
     {
-      for (int channel = 0; channel < channels; channel++)
-      {
-        s = source + (y * width + x) * channels + channel;
-        *dest = (s[0] + s[channels] + s[width * channels] + s[(1 + width) * channels]) * 0.25f;
+        s = source + y * width + x;
+        *dest = (s[0] + s[1] + s[width] + s[width+1]) * 0.25f;
         dest++;
-      }
     }
   }
   data.imageValid[level] = true;
@@ -654,52 +645,57 @@ void Frame::buildGradients(int level)
         (Eigen::Vector4f*)FrameMemory::getInstance().getBuffer(sizeof(Eigen::Vector4f) * width * height);
 
   Eigen::Vector4f *gradxyii_pt = data.gradients[level] + width;
+
+  double2 sumg {0.0, 0.0};
+  int N = 0;
   if (!isDisplacement)
   {
-    int channels = 1;
-    const float* img_pt = data.image[level] + width * channels;
-    const float* img_pt_max = data.image[level] + width * (height - 1) * channels;
-    const int img_mid_idx = (width * height / 2) + width / 2;
+    const float* img_pt = data.image[level] + width;
+    const float* img_pt_max = data.image[level] + width * (height - 1);
 
     // in each iteration i need -1,0,p1,mw,pw
     float val_m1 = *(img_pt - 1);
     float val_00 = *img_pt;
     float val_p1;
 
-    for (; img_pt < img_pt_max; img_pt++, gradxyii_pt++)
+    for (; img_pt < img_pt_max; img_pt++, gradxyii_pt++, N++)
     {
       val_p1 = *(img_pt + 1);
 
-      *((float*)gradxyii_pt) = 0.5f * (val_p1 - val_m1);
-      *(((float*)gradxyii_pt) + 1) = 0.5f * (*(img_pt + width) - *(img_pt - width));
-      *(((float*)gradxyii_pt) + 2) = val_00;
+      *((float *)gradxyii_pt) = 0.5f * (val_p1 - val_m1);
+      *(((float *)gradxyii_pt) + 1) = 0.5f * (*(img_pt + width) - *(img_pt - width));
+      *(((float *)gradxyii_pt) + 2) = val_00;
 
       val_m1 = val_00;
       val_00 = val_p1;
+
+      sumg.x += sqr(*((float *)gradxyii_pt + 0));
+      sumg.y += sqr(*((float *)gradxyii_pt + 1));
     }
   }
-  else // displacement laplacian & gradient data
+  else // displacement data
   {
-    int channels = 4;
-    float *img_pt = data.image[level] + width * channels;
-    float *img_pt_max = data.image[level] + width * (height - 1) * channels;
-      
-    // All LSD-SLAM validation based on image gradients derived from 8bpc (not float) images
-    // Displacement variables based on float variances (max 1.0) need to address this
-    int img_mid_idx = (height / 2) * width + width / 2;
-    int idx = 0;
-    for (; img_pt < img_pt_max; img_pt += channels, gradxyii_pt++, idx++)
+    std::shared_ptr<Image<float4>> dImage = data.lsdDisplacementPyramid[level];
+    float4* disp_pt = dImage->HData() + width;
+    const float4* disp_pt_max = disp_pt + width * (height - 1);
+
+    for (; disp_pt < disp_pt_max; disp_pt++, gradxyii_pt++, N++)
     {
-      *(((float*)gradxyii_pt) + 0) = img_pt[1]; // gx
-      *(((float*)gradxyii_pt) + 1) = img_pt[2]; // gy 
-      *(((float*)gradxyii_pt) + 2) = img_pt[0]; // Laplacian
-      *(((float*)gradxyii_pt) + 3) = 0;
+      float4 disp = *disp_pt; 
+      *(((float *)gradxyii_pt) + 0) = disp.z * displacementGain; // gx
+      *(((float *)gradxyii_pt) + 1) = disp.w * displacementGain; // gy
+      *(((float *)gradxyii_pt) + 2) = disp.x; // dx
+      *(((float *)gradxyii_pt) + 3) = disp.y; // dy
+
+      sumg.x += sqr(*(((float *)gradxyii_pt) + 0));
+      sumg.y += sqr(*(((float *)gradxyii_pt) + 1));
 
       // if (idx == img_mid_idx)
       //  printf("Mid gx lvl %i) Lap: %f, gx: %f, gy: %f\n", level, img_pt[0], img_pt[1], img_pt[2]);
     }
   }
-
+  float rms = sqrt(sumg.x + sumg.y)/(float)N;
+  //printf("rms g = %f\n", rms);
   data.gradientsValid[level] = true;
 }
 

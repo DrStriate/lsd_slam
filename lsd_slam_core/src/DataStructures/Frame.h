@@ -28,6 +28,8 @@
 #include "unordered_set"
 #include "util/settings.h"
 
+#include "lsdPyramids.h"
+
 namespace lsd_slam
 {
 class DepthMapPixelHypothesis;
@@ -232,7 +234,6 @@ private:
     double timestamp;
 
     float* image[PYRAMID_LEVELS];
-    float* displacementImage;
     bool imageValid[PYRAMID_LEVELS];
 
     Eigen::Vector4f* gradients[PYRAMID_LEVELS];
@@ -262,6 +263,9 @@ private:
     // data from initial tracking, indicating which pixels in the reference frame ware good or not.
     // deleted as soon as frame is used for mapping.
     bool* refPixelWasGood;
+
+    // Displacement model data
+    std::shared_ptr<Image<float4>> lsdDisplacementPyramid[5];
   };
   Data data;
 
@@ -341,15 +345,8 @@ inline double Frame::timestamp() const
 
 inline float* Frame::image(int level)
 {
-  //printf ("request (IMAGE, id %i level %i)\n", data.id, level);
-  if (isDisplacement && level == 0)
-  {
-    return data.displacementImage;
-  }
   if (!data.imageValid[level])
   {  
-    if (displacementDebugInfo)
-      printf ("require(IMAGE, id %i level %i)\n", data.id, level);
     require(IMAGE, level);
   }
   return data.image[level];

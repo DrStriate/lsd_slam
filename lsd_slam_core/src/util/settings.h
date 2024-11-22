@@ -84,7 +84,7 @@ namespace lsd_slam
 #endif
 
 #define SE3TRACKING_MIN_LEVEL 1
-#define SE3TRACKING_MAX_LEVEL 5
+#define SE3TRACKING_MAX_LEVEL 4 //5 // BUg in Dispacemeny pyramids at hight levels
 
 #define SIM3TRACKING_MIN_LEVEL 1
 #define SIM3TRACKING_MAX_LEVEL 5
@@ -134,8 +134,8 @@ namespace lsd_slam
 #define MIN_EPL_ANGLE_SQUARED (0.3f * 0.3f)
 
 // abs. grad at that location needs to be larger than this.
-#define MIN_ABS_GRAD_CREATE (isDisplacement? minUseGrad / 256.0f : minUseGrad)
-#define MIN_ABS_GRAD_DECREASE (isDisplacement? minUseGrad / 256.0f : minUseGrad)
+#define MIN_ABS_GRAD_CREATE (isDisplacement? minUseGrad * displacementGain : minUseGrad)
+#define MIN_ABS_GRAD_DECREASE (isDisplacement? minUseGrad * displacementGain : minUseGrad)
 
 // ============== RE-LOCALIZATION, KF-REACTIVATION etc. ======================
 // defines the level on which we do the quick tracking-check for relocalization.
@@ -154,7 +154,7 @@ namespace lsd_slam
 // Displacement processing settings
 extern bool isDisplacement;
 extern float displacementSigma;
-extern float laplacianGain;
+extern float displacementGain;
 extern bool displacementDebug;
 
 // settings variables

@@ -958,22 +958,26 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
           displacementSigma / 16.0f + mipSigma};
       
       // r - ref, f - frame    
-      float rgu = (*gradData)[0];
-      float rgv = (*gradData)[1];
-      float fgu = resInterp[0];
-      float fgv = resInterp[1];
-      float4 dr = DisplacementFn::getDisplacement((*gradData)[2], rgu, rgv, levelSigma[level]); 
-      float4 df = DisplacementFn::getDisplacement(resInterp[2], fgu, fgv, levelSigma[level]);
+      float rgu = (*gradData)[0] * 1.0f / displacementGain;
+      float rgv = (*gradData)[1] * 1.0f / displacementGain;
+      float rdu = (*gradData)[2];
+      float rdv = (*gradData)[3];
+      float fgu = resInterp[0] * 1.0f / displacementGain;
+      float fgv = resInterp[1] * 1.0f / displacementGain;
+      float fdu = resInterp[2];
+      float fdv = resInterp[3];
+      float4 dr {rdu, rdv, rgu, rgv}; //DisplacementFn::getDisplacement((*gradData)[2], rgu, rgv, levelSigma[level]); 
+      float4 df {fdu, fdv, fgu, fgv}; //DisplacementFn::getDisplacement(resInterp[2], fgu, fgv, levelSigma[level]);
       
-      std::vector<float> D; // uu, uv, D, wt
-      std::vector<float> W; // wu, wv
-      std::vector<float> P; // pu, pv
+      float4 D; // uu, uv, D, wt
+      float4 W; // wu, wv
+      float2 P; // pu, pv
       if (DisparityFn::getDisparityCoeffs(dr, df, u_new, v_new, D, W, P))
       {
-        Du = D[0] * D[2];
-        Dv = D[1] * D[2];
-        wu = W[0];
-        wv = W[1];
+        Du = D.x * D.z;
+        Dv = D.y * D.z;
+        wu = W.x;
+        wv = W.y;
         du = df.x;
         dv = df.y;
 
