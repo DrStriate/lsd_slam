@@ -68,17 +68,16 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
    if (isDisplacement)
    {
     std::shared_ptr<LsdPyramids> lsdPyramids = std::make_shared<LsdPyramids>(
-      displacementSigma, 0, SE3TRACKING_MAX_LEVEL);
-    int levelWidth = data.width[0];
-    int levelHeight = data.height[0];
-    std::shared_ptr<Image<float>> sourceImage = std::make_shared<Image<float>>(levelWidth, levelHeight);
-    sourceImage->loadImageData(data.image[0]);//, 1.0f / displacementGain);
-    lsdPyramids->createPyramid(
-      data.lsdDisplacementPyramid,
+      displacementSigma, SE3TRACKING_MIN_LEVEL, SE3TRACKING_MAX_LEVEL - 1);
+
+    lsdPyramids->createPyramids(
+      data.laplacianPyramid,
+      data.gradientPyramid,
       data.image[0],
-      levelWidth,
-      levelHeight);
-    //PostProcess::displayImage(*data.lsdDisplacementPyramid[2], 1, 2);
+      data.width[0],
+      data.height[0]);
+
+    //PostProcess::displayImage(*data.gradientPyramid[1], 1, 0);
   }
 }
 
@@ -269,7 +268,8 @@ void Frame::setDepthFromGroundTruth(const float* depth, float cov_scale)
     for (int x = 0; x < width0; x++)
     {
       if (x > 0 && x < width0 - 1 && y > 0 && y < height0 - 1 &&  // pyramidMaxGradient is not valid for the border
-          pyrMaxGradient[x + y * width0] >= MIN_ABS_GRAD_CREATE && !isnanf(*depth) && *depth > 0)
+          pyrMaxGradient[x + y * width0] >= (isDisplacement? minUseDispGrad : MIN_ABS_GRAD_CREATE) && !isnanf(*depth) 
+          && *depth > 0)
       {
         *pyrIDepth = 1.0f / *depth;
         *pyrIDepthVar = VAR_GT_INIT_INITIAL * cov_scale;
@@ -675,27 +675,34 @@ void Frame::buildGradients(int level)
   }
   else // displacement data
   {
-    std::shared_ptr<Image<float4>> dImage = data.lsdDisplacementPyramid[level];
-    float4* disp_pt = dImage->HData() + width;
-    const float4* disp_pt_max = disp_pt + width * (height - 1);
+    std::shared_ptr<Image<float2>> gradientImage = data.gradientPyramid[level];
+    std::shared_ptr<Image<float>> laplacianImage = data.laplacianPyramid[level];
+    const float2* gradient = gradientImage->HData();
+    const float* laplacian = laplacianImage->HData();
 
-    for (; disp_pt < disp_pt_max; disp_pt++, gradxyii_pt++, N++)
+    for (int j = 1; j < height -1; j++)
     {
-      float4 disp = *disp_pt; 
-      *(((float *)gradxyii_pt) + 0) = disp.z * displacementGain; // gx
-      *(((float *)gradxyii_pt) + 1) = disp.w * displacementGain; // gy
-      *(((float *)gradxyii_pt) + 2) = disp.x; // dx
-      *(((float *)gradxyii_pt) + 3) = disp.y; // dy
+      for (int i = 1; i < width - 1; i++)
+      {
+        int idx = j * width + i;
+        Eigen::Vector4f gradient_pt (
+          gradient[idx].x, 
+          gradient[idx].y, 
+          laplacian[idx], 
+          0.0f);
+        gradxyii_pt[idx] = gradient_pt;
 
-      sumg.x += sqr(*(((float *)gradxyii_pt) + 0));
-      sumg.y += sqr(*(((float *)gradxyii_pt) + 1));
+        sumg.x += sqr(gradient[idx].x);
+        sumg.y += sqr(gradient[idx].x);
 
-      // if (idx == img_mid_idx)
-      //  printf("Mid gx lvl %i) Lap: %f, gx: %f, gy: %f\n", level, img_pt[0], img_pt[1], img_pt[2]);
+        N++;
+      }
     }
   }
   float rms = sqrt(sumg.x + sumg.y)/(float)N;
-  //printf("rms g = %f\n", rms);
+  // if (level == 1)
+  //   printf("rms g = %f\n", rms);
+
   data.gradientsValid[level] = true;
 }
 
@@ -757,6 +764,7 @@ void Frame::buildMaxGradients(int level)
   maxgrad_pt = data.maxGradients[level] + width + 1;
   maxgrad_pt_max = data.maxGradients[level] + width * (height - 1) - 1;
   maxgrad_t_pt = maxGradTemp + width + 1;
+  float minGrad = (isDisplacement? minUseDispGrad : MIN_ABS_GRAD_CREATE);
   for (; maxgrad_pt < maxgrad_pt_max; maxgrad_pt++, maxgrad_t_pt++)
   {
     float g1 = maxgrad_t_pt[-1];
@@ -767,13 +775,13 @@ void Frame::buildMaxGradients(int level)
     if (g1 < g3)
     {
       *maxgrad_pt = g3;
-      if (g3 >= MIN_ABS_GRAD_CREATE)
+      if (g3 >= minGrad)
         numMappablePixels++;
     }
     else
     {
       *maxgrad_pt = g1;
-      if (g1 >= MIN_ABS_GRAD_CREATE)
+      if (g1 >= minGrad)
         numMappablePixels++;
     }
   }
@@ -783,7 +791,7 @@ void Frame::buildMaxGradients(int level)
 
   FrameMemory::getInstance().returnBuffer(maxGradTemp);
 
-  data.maxGradientsValid[level] = true;
+  data.maxGradientsValid[level] = true; 
 }
 
 void Frame::releaseMaxGradients(int level)

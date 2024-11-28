@@ -28,7 +28,7 @@ RunningStats runningStats;
 
 bool isDisplacement = true;
 float displacementSigma = 4.0f;
-float displacementGain = 3.0f; // to fool filters set to non gaussian gradients
+float minUseDispGrad = 3.0f;
 bool displacementDebug = false;
 
 bool autoRun = true;
@@ -79,7 +79,7 @@ float freeDebugParam5 = 1;
 float KFDistWeight = 4;
 float KFUsageWeight = 3;
 
-float minUseGrad = 5;
+float minUseGrad = 5; 
 float cameraPixelNoise2 = 4 * 4;
 float depthSmoothingFactor = 1;
 

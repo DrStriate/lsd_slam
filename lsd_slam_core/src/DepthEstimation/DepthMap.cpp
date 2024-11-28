@@ -118,7 +118,7 @@ void DepthMap::observeDepthRow(int yMin, int yMax, RunningStats* stats)
         continue;
       }
 
-      if (keyFrameMaxGradBuf[idx] < MIN_ABS_GRAD_CREATE || target->blacklisted < MIN_BLACKLIST)
+      if (keyFrameMaxGradBuf[idx] < (isDisplacement? minUseDispGrad : MIN_ABS_GRAD_CREATE) || target->blacklisted < MIN_BLACKLIST)
         continue;
 
       bool success;
@@ -842,7 +842,7 @@ void DepthMap::initializeRandomly(Frame* new_frame)
   {
     for (int x = 1; x < width - 1; x++)
     {
-      if (maxGradients[x + y * width] > MIN_ABS_GRAD_CREATE)
+      if (maxGradients[x + y * width] > (isDisplacement? minUseDispGrad : MIN_ABS_GRAD_CREATE))
       {
         float idepth = 0.5f + 1.0f * ((rand() % 100001) / 100000.0f);
         currentDepthMap[x + y * width] =

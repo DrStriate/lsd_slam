@@ -947,25 +947,26 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     bool isGood;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
-    float mipSigma = 1.0f;
     if (isDisplacement)
-    {
-      float levelSigma[5] = {
-          displacementSigma,
-          displacementSigma / 2.0f + mipSigma,
-          displacementSigma / 4.0f + mipSigma,
-          displacementSigma / 8.0f + mipSigma,
-          displacementSigma / 16.0f + mipSigma};
-      
+    {      
       // r - ref, f - frame    
-      float rgu = (*gradData)[0] * 1.0f / displacementGain;
-      float rgv = (*gradData)[1] * 1.0f / displacementGain;
-      float rdu = (*gradData)[2];
-      float rdv = (*gradData)[3];
-      float fgu = resInterp[0] * 1.0f / displacementGain;
-      float fgv = resInterp[1] * 1.0f / displacementGain;
-      float fdu = resInterp[2];
-      float fdv = resInterp[3];
+
+      // really should rotate reference gradient with transform
+      float rgu = (*gradData)[0];
+      float rgv = (*gradData)[1];
+      //float rlaplacian = (*gradData)[2];
+      float rLaplacian = affineEstimation_a * (*gradData)[2] + affineEstimation_b;
+      float4 rDisp = DisplacementFn::getDisplacement(rLaplacian, rgu, rgv, displacementSigma);
+      float rdu = rDisp.x;
+      float rdv = rDisp.y;
+
+      float fgu = resInterp[0];
+      float fgv = resInterp[1];
+      float flaplacian = resInterp[2];
+      float4 fDisp = DisplacementFn::getDisplacement(flaplacian, fgu, fgv, displacementSigma);
+      float fdu = fDisp.x;
+      float fdv = fDisp.y;
+
       float4 dr {rdu, rdv, rgu, rgv}; //DisplacementFn::getDisplacement((*gradData)[2], rgu, rgv, levelSigma[level]); 
       float4 df {fdu, fdv, fgu, fgv}; //DisplacementFn::getDisplacement(resInterp[2], fgu, fgv, levelSigma[level]);
       
