@@ -330,12 +330,12 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
     float cx_l = KLvl(0, 2);
     float cy_l = KLvl(1, 2);
 
-    if (displacementDebug)
-    {
-      std::cout << "level " << lvl << std::endl;
-      std::cout << "cx_l: " << cx_l << ", cy_l: " << cy_l << std::endl;
-      std::cout << "fx_l: " << fx_l << ", fy_l: " << fy_l << std::endl;
-    }
+    // if (displacementDebug)
+    // {
+    //   std::cout << "level " << lvl << std::endl;
+    //   std::cout << "cx_l: " << cx_l << ", cy_l: " << cy_l << std::endl;
+    //   std::cout << "fx_l: " << fx_l << ", fy_l: " << fy_l << std::endl;
+    // }
 
     callOptimized(calcResidualAndBuffers,
                   (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
@@ -1387,7 +1387,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       //printf("r: %f, W: %f\n", r, *(buf_weight_p + i));
     }
   }
-  //std::cout << "Zav = " << zSum / (float)buf_warped_size << std::endl;
+  float zAv = zSum / (float)buf_warped_size ;
+  std::cout << "Zav = " << zAv << std::endl;
 
   Vector6 result;
   // solve ls
@@ -1395,7 +1396,14 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   ls.solve(result);
 
   if (displacementDebug)
+  {
     std::cout << "Delta T:\n" << result << std::endl << std::endl;
+    std::cout <<
+    "u: " << result(0) * fx_l / zAv <<
+    ", v: " << result(1) * fy_l / zAv <<
+    ", s: " << result(2) <<
+    ". 0: " << result(5) << std::endl;
+  }
   
   return result;  
 }

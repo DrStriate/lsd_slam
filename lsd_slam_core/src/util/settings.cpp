@@ -29,7 +29,7 @@ RunningStats runningStats;
 bool isDisplacement = true;
 float displacementSigma = 4.0f;
 float minUseDispGrad = 3.0f;
-bool displacementDebug = false;
+bool displacementDebug = true;
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;

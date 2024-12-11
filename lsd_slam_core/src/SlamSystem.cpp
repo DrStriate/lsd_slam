@@ -895,7 +895,7 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
     auto T = newRefToFrame_poseUpdate.translation();
     std::cout << T << std::endl;
     auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
-    auto euler = q.toRotationMatrix().eulerAngles(1, 2, 0);
+    auto euler = q.toRotationMatrix().eulerAngles(0, 1, 2);
     std::cout << euler << std::endl;
   }
 
