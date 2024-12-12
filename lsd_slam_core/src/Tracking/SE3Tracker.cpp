@@ -1340,7 +1340,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Vector6 Ju;
       Ju[0] = du_dx;       // dru / dX
       Ju[1] = 0;           // dru / dY
-      Ju[2] = -u * du_dx;  // dru / dZ
+      Ju[2] = -u ;         // dru / dZ (* ud_dx?)
       Ju[3] = -u * v;      // dru / d0p
       Ju[4] = 1.0 + u * u; // dru / d0y
       Ju[5] = -v;          // dru / d0r
@@ -1350,7 +1350,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Vector6 Jv;
       Jv[0] = 0;              // drv / dX
       Jv[1] = dv_dy;          // drv / dY
-      Jv[2] = -v * dv_dy;     // drv / dZ
+      Jv[2] = -v;             // drv / dZ (* dv_dy?)
       Jv[3] = -(1.0 + v * v); // drv / d0p
       Jv[4] = u * v;          // drv / d0y
       Jv[5] = u;              // drv / d0r
@@ -1395,15 +1395,15 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   ls.finish();
   ls.solve(result);
 
-  if (displacementDebug)
-  {
-    std::cout << "Delta T:\n" << result << std::endl << std::endl;
-    std::cout <<
-    "u: " << result(0) * fx_l / zAv <<
-    ", v: " << result(1) * fy_l / zAv <<
-    ", s: " << result(2) <<
-    ". 0: " << result(5) << std::endl;
-  }
+  // if (displacementDebug)
+  // {
+  //   std::cout << "Delta T:\n" << result << std::endl << std::endl;
+  //   std::cout <<
+  //   "u: " << result(0) * fx_l / zAv <<
+  //   ", v: " << result(1) * fy_l / zAv <<
+  //   ", s: " << result(2) <<
+  //   ". 0: " << result(5) << std::endl;
+  // }
   
   return result;  
 }

@@ -897,6 +897,15 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
     auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
     auto euler = q.toRotationMatrix().eulerAngles(0, 1, 2);
     std::cout << euler << std::endl;
+
+    float zAv = 1.0f;
+    float fx_l = 127.163; // Level 1
+    float fy_l = 187.967; // Level 1
+    std::cout <<
+    "u: " << T(0) * fx_l / zAv <<
+    ", v: " << T(1) * fy_l / zAv <<
+    ", s: " << T(2) <<
+    ". 0: " << euler(2) << std::endl;
   }
 
   gettimeofday(&tv_end, NULL);
