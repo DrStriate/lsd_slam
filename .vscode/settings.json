@@ -21,6 +21,9 @@
         "variant": "cpp",
         "locale": "cpp",
         "stream_ref": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "cmath": "cpp",
+        "complex": "cpp",
+        "valarray": "cpp"
     }
 }

@@ -944,7 +944,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     }
 
     float residual = 0.0f, Du = 0.0f, Dv = 0.0f, wu = 0.0f, wv = 0.0f, du = 0.0f, dv = 0.0f;
-    bool isGood;
+    bool isGood = false;
     Eigen::Vector4f resInterp = getInterpolatedElement44(frame_gradients, u_new, v_new, w);
 
     if (isDisplacement)
@@ -983,6 +983,16 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
         dv = df.y;
 
         isGood = true;
+
+        *(buf_warped_wu + idx) = wu; 
+        *(buf_warped_wv + idx) = wv;
+        *(buf_warped_du + idx) = du;
+        *(buf_warped_dv + idx) = dv;
+        *(buf_warped_residual_u + idx) = Du;
+        *(buf_warped_residual_v + idx) = Dv;
+
+        // Estimate overall residuals for tracking
+        *(buf_warped_residual + idx) = (sqr(Du) + sqr(Dv));    
       }
     }
     else
@@ -1002,6 +1012,10 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
           residual * residual /
               (MAX_DIFF_CONSTANT + MAX_DIFF_GRAD_MULT * (resInterp[0] * resInterp[0] + resInterp[1] * resInterp[1])) <
           1;
+
+      *(buf_warped_dx + idx) = fx_l * resInterp[0];
+      *(buf_warped_dy + idx) = fy_l * resInterp[1];   
+      *(buf_warped_residual + idx) = residual;        // LSD-SLAM uses 1D intensity difference residuals
     }
 
     if (isGoodOutBuffer != 0)
@@ -1010,22 +1024,6 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     *(buf_warped_x + idx) = Wxp(0);
     *(buf_warped_y + idx) = Wxp(1);
     *(buf_warped_z + idx) = Wxp(2);
-
-    if (isDisplacement)  
-    {
-      *(buf_warped_wu + idx) = wu;   // Displacement model uses displacement, weight,  and Disparity 2D vects
-      *(buf_warped_wv + idx) = wv; 
-      *(buf_warped_du + idx) = du;      
-      *(buf_warped_dv + idx) = dv; 
-      *(buf_warped_residual_u + idx) = Du;
-      *(buf_warped_residual_v + idx) = Dv;
-    } 
-    else
-    {
-      *(buf_warped_dx + idx) = fx_l * resInterp[0];    
-      *(buf_warped_dy + idx) = fy_l * resInterp[1];   
-      *(buf_warped_residual + idx) = residual;        // LSD-SLAM uses 1D intensity difference residuals
-    }
 
     *(buf_d + idx) = 1.0f / (*refPoint)[2];
     *(buf_idepthVar + idx) = (*refColVar)[1];
@@ -1340,7 +1338,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Vector6 Ju;
       Ju[0] = du_dx;       // dru / dX
       Ju[1] = 0;           // dru / dY
-      Ju[2] = -u ;         // dru / dZ (* ud_dx?)
+      Ju[2] = -u ;         // dru / dZ (* du_dx?)
       Ju[3] = -u * v;      // dru / d0p
       Ju[4] = 1.0 + u * u; // dru / d0y
       Ju[5] = -v;          // dru / d0r
@@ -1359,7 +1357,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
     }
   }
   else
-  {
+  {  
     ls.initialize(width * height);
     for (int i = 0; i < buf_warped_size; i++)
     {
@@ -1368,8 +1366,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       float pz = *(buf_warped_z + i);
       zSum += pz;
       float r = *(buf_warped_residual + i);
-      float gx = *(buf_warped_dx + i);
-      float gy = *(buf_warped_dy + i);
+      float gx = *(buf_warped_dx + i); // gx = g_x * fx_l
+      float gy = *(buf_warped_dy + i); // gy = g_y * fx_y
       // step 3 + step 5 comp 6d error vector
       float z = 1.0f / pz;
       float z_sqr = 1.0f / (pz * pz);
@@ -1388,7 +1386,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
     }
   }
   float zAv = zSum / (float)buf_warped_size ;
-  std::cout << "Zav = " << zAv << std::endl;
+  //std::cout << "Zav = " << zAv << std::endl;
 
   Vector6 result;
   // solve ls
