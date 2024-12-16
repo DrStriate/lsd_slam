@@ -24,6 +24,11 @@
         "*.ipp": "cpp",
         "cmath": "cpp",
         "complex": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "shared_mutex": "cpp",
+        "mutex": "cpp",
+        "condition_variable": "cpp",
+        "__mutex_base": "cpp",
+        "ios": "cpp"
     }
 }

@@ -74,7 +74,8 @@ SE3Tracker::SE3Tracker(int w, int h, Eigen::Matrix3f K)
   buf_warped_dv = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_wu = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_wv = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
-
+  buf_weight_px = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
+  buf_weight_py = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
 
   buf_warped_x = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_y = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
@@ -118,6 +119,8 @@ SE3Tracker::~SE3Tracker()
   Eigen::internal::aligned_free((void*)buf_warped_dv);
   Eigen::internal::aligned_free((void*)buf_warped_wu);
   Eigen::internal::aligned_free((void*)buf_warped_wv);
+  Eigen::internal::aligned_free((void*)buf_weight_px);
+  Eigen::internal::aligned_free((void*)buf_weight_py);
 
   Eigen::internal::aligned_free((void*)buf_warped_x);
   Eigen::internal::aligned_free((void*)buf_warped_y);
@@ -288,6 +291,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
 // first_frame has depth, second_frame DOES NOT have depth.
 SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3& frameToReference_initialEstimate)
 {
+  std::cout << "SE3Tracker::trackFrame (first)" << std::endl;
   boost::shared_lock<boost::shared_mutex> lock = frame->getActiveLock();
   diverged = false;
   trackingWasGood = true;
@@ -733,6 +737,7 @@ float SE3Tracker::calcWeightsAndResidualNEON(const Sophus::SE3f& referenceToFram
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, float fx_l, float fy_l)
 {
+  std::cout << "SE3Tracker::calcWeightsAndResidual (odd weight calc)" << std::endl;
   float tx = referenceToFrame.translation()[0];
   float ty = referenceToFrame.translation()[1];
   float tz = referenceToFrame.translation()[2];
@@ -753,7 +758,7 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       // TO DO: Integrate lsd-slam weighting scheme with our weights gx, y
       float rpx = *(buf_warped_residual_u + i); // r_px (Du)
       float rpy = *(buf_warped_residual_v + i); // r_py (Dv)
-      float wx = *(buf_warped_wu + i); // weights
+      float wx = *(buf_warped_wu + i); // weights from disparity metric
       float wy = *(buf_warped_wv + i);
       float dx = *(buf_warped_du + i) / fx_l * pz; // displacements d(u,v) / fxl * pz
       float dy = *(buf_warped_dv + i) / fy_l * pz;
@@ -778,8 +783,8 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       sumRes += whx * w_px * rpx * rpx +
                 why * w_py * rpy * rpy;
 
-      *(buf_warped_wu + i) = wx * whx * w_px;
-      *(buf_warped_wv + i) = wy * why * w_py;
+      *(buf_weight_px + i) = wx * whx * w_px;
+      *(buf_weight_py + i) = wy * why * w_py;
       //printf("Wx %f, Wy %f\n", *(buf_warped_wu + i), *(buf_warped_wv + i));
     }
     else
@@ -789,12 +794,11 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       float gy = *(buf_warped_dy + i);                       // \delta_y I gy * fyl
 
       // calc dw/dd (first 2 components):
-      float g0 = (tx * pz - tz * px) / (pz * pz * d);
+      float g0 = (tx * pz - tz * px) / (pz * pz * d); 
       float g1 = (ty * pz - tz * py) / (pz * pz * d);
 
       // calc w_p
       float drpdd = gx * g0 + gy * g1;  // ommitting the minus
-      //float w_p = 1.0f / (cameraPixelNoise2 / (isDisplacement ? 256.0f * 256.0f : 1.0f) + s * drpdd * drpdd);
       float w_p = 1.0f / (cameraPixelNoise2 + s * drpdd * drpdd);
 
       float weighted_rp = fabs(rp * sqrtf(w_p));
@@ -808,6 +812,7 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
     }
   }
 
+  printf ("sumRes/buf_warped_size: %f\n", sumRes / buf_warped_size);
   return sumRes / buf_warped_size;
 }
 
@@ -893,6 +898,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
                                          int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                          bool plotResidual)
 {
+  std::cout << "SE3Tracker::calcResidualAndBuffers (initial frame data prep)" << std::endl;
   calcResidualAndBuffers_debugStart();
 
   if (plotResidual)
@@ -950,22 +956,24 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     if (isDisplacement)
     {      
       // r - ref, f - frame    
+      // rotate reference gradient and displacement with transform
+      bool rotate = false;
+      Eigen::Matrix2f rotMat2 = rotMat.block<2, 2>(0, 0);
 
-      // really should rotate reference gradient with transform
-      float rgu = (*gradData)[0];
-      float rgv = (*gradData)[1];
-      //float rlaplacian = (*gradData)[2];
-      float rLaplacian = affineEstimation_a * (*gradData)[2] + affineEstimation_b;
-      float4 rDisp = DisplacementFn::getDisplacement(rLaplacian, rgu, rgv, displacementSigma);
-      float rdu = rDisp.x;
-      float rdv = rDisp.y;
+      Eigen::Vector2f refG ((*gradData)[0], (*gradData)[1]);
+      Eigen::Vector2f rotRefG = rotMat2 * refG;
+      Eigen::Vector2f refD ((*gradData)[2], (*gradData)[3]);
+      Eigen::Vector2f rotRefD = rotMat2 * refD;
+      
+      float rgu = rotate? rotRefG(0) : refG(0);
+      float rgv = rotate? rotRefG(1) : refG(1);
+      float rdu = rotate? rotRefD(0) : refD(0);
+      float rdv = rotate? rotRefD(1) : refD(1);;
 
       float fgu = resInterp[0];
       float fgv = resInterp[1];
-      float flaplacian = resInterp[2];
-      float4 fDisp = DisplacementFn::getDisplacement(flaplacian, fgu, fgv, displacementSigma);
-      float fdu = fDisp.x;
-      float fdv = fDisp.y;
+      float fdu = resInterp[2];
+      float fdv = resInterp[3];  
 
       float4 dr {rdu, rdv, rgu, rgv}; //DisplacementFn::getDisplacement((*gradData)[2], rgu, rgv, levelSigma[level]); 
       float4 df {fdu, fdv, fgu, fgv}; //DisplacementFn::getDisplacement(resInterp[2], fgu, fgv, levelSigma[level]);
@@ -990,9 +998,6 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
         *(buf_warped_dv + idx) = dv;
         *(buf_warped_residual_u + idx) = Du;
         *(buf_warped_residual_v + idx) = Dv;
-
-        // Estimate overall residuals for tracking
-        *(buf_warped_residual + idx) = (sqr(Du) + sqr(Dv));    
       }
     }
     else
@@ -1315,6 +1320,8 @@ Vector6 SE3Tracker::calculateWarpUpdateNEON(NormalEquationsLeastSquares& ls)
 
 Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l)
 {
+
+  std::cout << "SE3Tracker::calculateWarpUpdate (Gauss Newton regression)" << std::endl;
   //	weightEstimator.reset();
   //	weightEstimator.estimateDistribution(buf_warped_residual, buf_warped_size);
   //	weightEstimator.calcWeights(buf_warped_residual, buf_warped_weights, buf_warped_size);
@@ -1325,12 +1332,16 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
     ls.initialize(width * height * 2);
     for (int i = 0; i < buf_warped_size; i++)
     {
+      float px = *(buf_warped_x + i);
+      float py = *(buf_warped_y + i);
       float pz = *(buf_warped_z + i);
-      zSum += pz;
+      zSum += pz; 
       float du_dx = fx_l / pz;
       float u = *(buf_warped_x + i) * du_dx + *(buf_warped_du + i);
       float dv_dy = fy_l / pz;
       float v = *(buf_warped_y + i) * dv_dy + *(buf_warped_dv + i);
+      float du_dz = -px / sqr(pz) * fx_l;
+      float dv_dz = -py / sqr(pz) * fy_l;
 
       float ru = *(buf_warped_residual_u + i);
       float rv = *(buf_warped_residual_v + i);
@@ -1338,22 +1349,22 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Vector6 Ju;
       Ju[0] = du_dx;       // dru / dX
       Ju[1] = 0;           // dru / dY
-      Ju[2] = -u ;         // dru / dZ (* du_dx?)
+      Ju[2] = du_dz;       // dru / dZ  (-u? -u * du_dx? du_dz? )
       Ju[3] = -u * v;      // dru / d0p
       Ju[4] = 1.0 + u * u; // dru / d0y
       Ju[5] = -v;          // dru / d0r
 
-      ls.update(Ju, -ru, *(buf_warped_wu + i)); 
+      ls.update(Ju, -ru, *(buf_weight_px + i)); 
 
       Vector6 Jv;
       Jv[0] = 0;              // drv / dX
       Jv[1] = dv_dy;          // drv / dY
-      Jv[2] = -v;             // drv / dZ (* dv_dy?)
+      Jv[2] = dv_dz;          // drv / dZ (-v? -v * dv_dy? dv_dz? )
       Jv[3] = -(1.0 + v * v); // drv / d0p
       Jv[4] = u * v;          // drv / d0y
       Jv[5] = u;              // drv / d0r
 
-      ls.update(Jv, -rv, *(buf_warped_wv + i));
+      ls.update(Jv, -rv, *(buf_weight_py + i));
     }
   }
   else
@@ -1392,17 +1403,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   // solve ls
   ls.finish();
   ls.solve(result);
+  std::cout << std::setprecision(4) << "result: " << result.transpose() << std::endl;
 
-  // if (displacementDebug)
-  // {
-  //   std::cout << "Delta T:\n" << result << std::endl << std::endl;
-  //   std::cout <<
-  //   "u: " << result(0) * fx_l / zAv <<
-  //   ", v: " << result(1) * fy_l / zAv <<
-  //   ", s: " << result(2) <<
-  //   ". 0: " << result(5) << std::endl;
-  // }
-  
   return result;  
 }
 

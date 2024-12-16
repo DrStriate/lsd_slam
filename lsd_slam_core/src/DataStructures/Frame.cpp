@@ -23,7 +23,7 @@
 #include "DataStructures/FrameMemory.h"
 #include "DepthEstimation/DepthMapPixelHypothesis.h"
 #include "Tracking/TrackingReference.h"
-#include <displacementFn.h>
+#include <displacementPyramids.h>
 #include <postProcess.h>
 namespace lsd_slam
 {
@@ -65,19 +65,21 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
     printf("ALLOCATED frame %d, now there are %d\n", this->id(), privateFrameAllocCount);
 
   // DISPLACEMENT MOD: Create gaussian pyramid in Frame
-   if (isDisplacement)
-   {
-    std::shared_ptr<LsdPyramids> lsdPyramids = std::make_shared<LsdPyramids>(
-      displacementSigma, SE3TRACKING_MIN_LEVEL, SE3TRACKING_MAX_LEVEL - 1);
+  if (isDisplacement)
+  {
+    std::shared_ptr<DisplacementPyramids> displacementPyramids = std::make_shared<DisplacementPyramids>(
+        displacementSigma, SE3TRACKING_MIN_LEVEL, SE3TRACKING_MAX_LEVEL - 1);
 
-    lsdPyramids->createPyramids(
-      data.laplacianPyramid,
-      data.gradientPyramid,
-      data.image[0],
-      data.width[0],
-      data.height[0]);
-
-    //PostProcess::displayImage(*data.gradientPyramid[1], 1, 0);
+    displacementPyramids->createPyramid(
+        data.dislpacementPyramid,
+        data.image[0],
+        data.width[0],
+        data.height[0]);
+    // for (int i = SE3TRACKING_MAX_LEVEL - 1; i >= SE3TRACKING_MIN_LEVEL; i--)
+    // {
+    //   PostProcess::displayImage(*data.dislpacementPyramid[i], 3, 0);
+    //   std::cout << "displayed level " << i << std::endl;
+    // }
   }
 }
 
@@ -675,25 +677,22 @@ void Frame::buildGradients(int level)
   }
   else // displacement data
   {
-    std::shared_ptr<Image<float2>> gradientImage = data.gradientPyramid[level];
-    std::shared_ptr<Image<float>> laplacianImage = data.laplacianPyramid[level];
-    const float2* gradient = gradientImage->HData();
-    const float* laplacian = laplacianImage->HData();
-
+    std::shared_ptr<Image<float4>> displacementImage = data.dislpacementPyramid[level];
+    const float4* displacent = displacementImage->HData();
     for (int j = 1; j < height -1; j++)
     {
       for (int i = 1; i < width - 1; i++)
       {
         int idx = j * width + i;
-        Eigen::Vector4f gradient_pt (
-          gradient[idx].x, 
-          gradient[idx].y, 
-          laplacian[idx], 
-          0.0f);
-        gradxyii_pt[idx] = gradient_pt;
+        Eigen::Vector4f displacement_pt (
+          displacent[idx].z, 
+          displacent[idx].w, 
+          displacent[idx].x, 
+          displacent[idx].y);
+        gradxyii_pt[idx] = displacement_pt;
 
-        sumg.x += sqr(gradient[idx].x);
-        sumg.y += sqr(gradient[idx].x);
+        sumg.x += sqr(gradxyii_pt[idx](0));
+        sumg.y += sqr(gradxyii_pt[idx](1));
 
         N++;
       }

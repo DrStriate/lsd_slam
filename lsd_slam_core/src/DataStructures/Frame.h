@@ -265,8 +265,7 @@ private:
     bool* refPixelWasGood;
 
     // Displacement model data
-    std::shared_ptr<Image<float2>> gradientPyramid[6];
-    std::shared_ptr<Image<float>> laplacianPyramid[6];
+    std::shared_ptr<Image<float4>> dislpacementPyramid[6];
   };
   Data data;
 
