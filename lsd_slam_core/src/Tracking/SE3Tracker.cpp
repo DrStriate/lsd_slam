@@ -956,24 +956,25 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     if (isDisplacement)
     {      
       // r - ref, f - frame    
-      // rotate reference gradient and displacement with transform
+      // rotate reference gradient with transform
       bool rotate = false;
       Eigen::Matrix2f rotMat2 = rotMat.block<2, 2>(0, 0);
-
       Eigen::Vector2f refG ((*gradData)[0], (*gradData)[1]);
       Eigen::Vector2f rotRefG = rotMat2 * refG;
-      Eigen::Vector2f refD ((*gradData)[2], (*gradData)[3]);
-      Eigen::Vector2f rotRefD = rotMat2 * refD;
-      
       float rgu = rotate? rotRefG(0) : refG(0);
       float rgv = rotate? rotRefG(1) : refG(1);
-      float rdu = rotate? rotRefD(0) : refD(0);
-      float rdv = rotate? rotRefD(1) : refD(1);;
+
+      float rLaplacian = (*gradData)[2];
+      float4 rDisp = DisplacementFn::getDisplacement(rLaplacian, rgu, rgv, displacementSigma);
+      float rdu = rDisp.x;
+      float rdv = rDisp.y;
 
       float fgu = resInterp[0];
       float fgv = resInterp[1];
-      float fdu = resInterp[2];
-      float fdv = resInterp[3];  
+      float fLaplacian = resInterp[2];
+      float4 fDisp = DisplacementFn::getDisplacement(fLaplacian, fgu, fgv, displacementSigma);
+      float fdu = fDisp.x;
+      float fdv = fDisp.y;
 
       float4 dr {rdu, rdv, rgu, rgv}; //DisplacementFn::getDisplacement((*gradData)[2], rgu, rgv, levelSigma[level]); 
       float4 df {fdu, fdv, fgu, fgv}; //DisplacementFn::getDisplacement(resInterp[2], fgu, fgv, levelSigma[level]);
