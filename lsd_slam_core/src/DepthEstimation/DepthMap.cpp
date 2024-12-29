@@ -151,17 +151,21 @@ void DepthMap::observeDepth()
            runningStats.num_observe_addSkip);
   }
 }
-
-bool DepthMap::makeAndCheckEPL(const int x, const int y, const Frame* const ref, float* pepx, float* pepy,
+// DISPLACEMENT MODS
+bool DepthMap::makeAndCheckEPL(const int x, const int y, /*const*/ Frame* const ref, float* pepx, float* pepy,
                                RunningStats* const stats)
 {
   int idx = x + y * width;
 
+  float flx, fly;
+  if (!ref->getDisplacedXY(x, y, &flx, &fly, SE3TRACKING_MIN_LEVEL))
+    return false;
+
   // ======= make epl ========
   // calculate the plane spanned by the two camera centers and the point (x,y,1)
   // intersect it with the keyframe's image plane (at depth=1)
-  float epx = -fx * ref->thisToOther_t[0] + ref->thisToOther_t[2] * (x - cx);
-  float epy = -fy * ref->thisToOther_t[1] + ref->thisToOther_t[2] * (y - cy);
+  float epx = -fx * ref->thisToOther_t[0] + ref->thisToOther_t[2] * (flx - cx);
+  float epy = -fy * ref->thisToOther_t[1] + ref->thisToOther_t[2] * (fly - cy);
 
   if (isnanf(epx + epy))
     return false;

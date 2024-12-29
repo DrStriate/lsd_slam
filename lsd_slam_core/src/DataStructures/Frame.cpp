@@ -23,7 +23,7 @@
 #include "DataStructures/FrameMemory.h"
 #include "DepthEstimation/DepthMapPixelHypothesis.h"
 #include "Tracking/TrackingReference.h"
-#include <displacementFn.h>
+#include <gaussianPyramids.h>
 #include <postProcess.h>
 namespace lsd_slam
 {
@@ -67,9 +67,9 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
   // DISPLACEMENT MOD: Create gaussian pyramid in Frame
    if (isDisplacement)
    {
-    std::shared_ptr<LsdPyramids> lsdPyramids = std::make_shared<LsdPyramids>(
+    std::shared_ptr<GaussianPyramids> gaussianPyramids = std::make_shared<GaussianPyramids>(
       displacementSigma, SE3TRACKING_MIN_LEVEL, SE3TRACKING_MAX_LEVEL - 1);
-    lsdPyramids->createPyramids(
+    gaussianPyramids->createPyramids(
       data.laplacianPyramid,
       data.gradientPyramid,
       data.image[0],
@@ -932,5 +932,24 @@ void Frame::printfAssert(const char* message) const
 {
   assert(!message);
   printf("%s\n", message);
+}
+
+// Displacement model point uv coordinate to feature location
+bool Frame::getDisplacedXY(int x, int y, float *outX, float *outY, int level)
+{
+  *outX = (float)x;
+  *outY = (float)y;
+  // if (isDisplacement)
+  // {
+  //   const Eigen::Vector4f *gradData = gradients(level);
+  //   const Eigen::Vector4f grad = gradData[x + y * this->width(level)];
+  //   if (grad[0] == 0.0f && grad[1] == 0.0f)
+  //     return false;
+  //   float dx = grad[2];
+  //   float dy = grad[3];
+  //   *outX += dx;
+  //   *outY += dy;
+  // }
+  return true;
 }
 }  // namespace lsd_slam

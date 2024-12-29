@@ -133,13 +133,17 @@ void TrackingReference::makePointCloud(int level)
     for (int y = 1; y < h - 1; y++)
     {
       int idx = x + y * w;
-
+      
+      *gradDataPT = pyrGradSource[idx].head<4>();
+      // DISPLACEMENT offset XY reference point uv by displacement
+      float fx, fy;
+      if (!keyframe->getDisplacedXY(x, y, &fx, &fy, level))
+        continue;
       if (pyrIdepthVarSource[idx] <= 0 || pyrIdepthSource[idx] == 0)
         continue;
 
       *posDataPT =
-          (1.0f / pyrIdepthSource[idx]) * Eigen::Vector3f(fxInvLevel * x + cxInvLevel, fyInvLevel * y + cyInvLevel, 1);
-      *gradDataPT = pyrGradSource[idx].head<4>();
+          (1.0f / pyrIdepthSource[idx]) * Eigen::Vector3f(fxInvLevel * fx + cxInvLevel, fyInvLevel * fy + cyInvLevel, 1);
       *colorAndVarDataPT = Eigen::Vector2f(pyrColorSource[idx], pyrIdepthVarSource[idx]);
       *idxPT = idx;
 

@@ -29,6 +29,8 @@
         "mutex": "cpp",
         "condition_variable": "cpp",
         "__mutex_base": "cpp",
-        "ios": "cpp"
+        "ios": "cpp",
+        "random": "cpp",
+        "iomanip": "cpp"
     }
 }

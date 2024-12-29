@@ -135,7 +135,8 @@ private:
   bool observeDepthCreate(const int& x, const int& y, const int& idx, RunningStats* const& stats);
   bool observeDepthUpdate(const int& x, const int& y, const int& idx, const float* keyFrameMaxGradBuf,
                           RunningStats* const& stats);
-  bool makeAndCheckEPL(const int x, const int y, const Frame* const ref, float* pepx, float* pepy,
+// DISPLACEMENT MOD
+  bool makeAndCheckEPL(const int x, const int y, /*const*/ Frame* const ref, float* pepx, float* pepy,
                        RunningStats* const stats);
 
   void regularizeDepthMap(bool removeOcclusion, int validityTH);

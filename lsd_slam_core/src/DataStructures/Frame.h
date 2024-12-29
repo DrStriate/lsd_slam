@@ -109,6 +109,8 @@ public:
   inline bool* refPixelWasGoodNoCreate();
   inline void clear_refPixelWasGood();
 
+  bool getDisplacedXY (int x, int y, float* outX, float* outY, int level = SE3TRACKING_MIN_LEVEL);
+
   /** Flags for use with require() and requirePyramid(). See the Frame class
    * documentation for their exact meaning. */
   enum DataFlags
@@ -281,6 +283,7 @@ private:
    * representation in memory. Use release(Frame::ALL, false) to store on disk instead.
    * ONLY CALL THIS, if an exclusive lock on activeMutex is owned! */
   bool minimizeInMemory();
+
 };
 
 inline int Frame::id() const

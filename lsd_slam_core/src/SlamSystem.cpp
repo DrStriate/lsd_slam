@@ -48,6 +48,11 @@
 
 using namespace lsd_slam;
 
+auto pAngle = [] (float rad) 
+{
+  return (rad > M_PI / 2 ? rad - M_PI : (rad < -M_PI / 2 ? rad + M_PI : rad));
+};
+
 SlamSystem::SlamSystem(int w, int h, Eigen::Matrix3f K, bool enableSLAM) : SLAMEnabled(enableSLAM), relocalizer(w, h, K)
 {
   if (w % 16 != 0 || h % 16 != 0)
@@ -891,21 +896,25 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
   // Debug info for Displacement testing
   if (displacementDebug)
   {
-    std::cout << "newRefToFrame T:" << std::endl;
-    auto T = newRefToFrame_poseUpdate.translation();
-    std::cout << T << std::endl;
+    std::cout ;
+    auto trans = newRefToFrame_poseUpdate.translation();
     auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
-    auto euler = q.toRotationMatrix().eulerAngles(0, 1, 2);
-    std::cout << euler << std::endl;
-
-    float zAv = 1.0f;
-    float fx_l = 127.163; // Level 1
-    float fy_l = 187.967; // Level 1
-    std::cout <<
-    "u: " << T(0) * fx_l / zAv <<
-    ", v: " << T(1) * fy_l / zAv <<
-    ", s: " << T(2) <<
-    ". 0: " << euler(2) << std::endl;
+    auto rot = q.toRotationMatrix().eulerAngles(0, 1, 2);
+    bool dof6 = true;
+    if (dof6) // 6Dof representation
+    {
+      std::cout << std::fixed << std::setprecision(4) << "T: " << trans.transpose() << ", " 
+      << pAngle(rot[0]) << ", " << pAngle(rot[1]) << ", " << pAngle(rot[2]) <<  std::endl;
+    }
+    else      // 4Dof representation
+    {
+      float zAv = 1.0f;
+      float fx_l = 127.163; // Level 1
+      float fy_l = 187.967; // Level 1
+      std::cout << std::fixed << std::setprecision(4)
+        << "T: u: " << trans(0) * fx_l / zAv << ", v: " << trans(1) * fy_l / zAv 
+        << ", s: " << trans(2) << ". 0: " << rot(2) << std::endl;
+    }
   }
 
   gettimeofday(&tv_end, NULL);

@@ -96,8 +96,8 @@ private:
   float* buf_d;
   float* buf_idepthVar;
   float* buf_weight_p;
-  float* buf_weight_px;
-  float* buf_weight_py;
+  float* buf_weight_u;
+  float* buf_weight_v;
 
   int buf_warped_size;
   
@@ -126,7 +126,7 @@ private:
   float calcWeightsAndResidualNEON(const Sophus::SE3f& referenceToFrame);
 #endif
 
-  Vector6 calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l);
+  Vector6 calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l, int level = 0);
 #if defined(ENABLE_SSE)
   Vector6 calculateWarpUpdateSSE(NormalEquationsLeastSquares& ls);
 #endif
