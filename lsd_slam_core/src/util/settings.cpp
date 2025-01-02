@@ -30,6 +30,7 @@ bool isDisplacement = true;
 float displacementSigma = 4.0f;
 float minUseDispGrad = 3.0f;
 bool displacementDebug = true;
+bool print4dof = true;
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;

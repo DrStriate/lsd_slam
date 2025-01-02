@@ -156,6 +156,7 @@ extern bool isDisplacement;
 extern float displacementSigma;
 extern float minUseDispGrad;
 extern bool displacementDebug;
+extern bool print4dof;
 
 // settings variables
 // controlled via keystrokes

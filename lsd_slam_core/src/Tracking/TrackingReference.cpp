@@ -136,9 +136,10 @@ void TrackingReference::makePointCloud(int level)
       
       *gradDataPT = pyrGradSource[idx].head<4>();
       // DISPLACEMENT offset XY reference point uv by displacement
-      float fx, fy;
-      if (!keyframe->getDisplacedXY(x, y, &fx, &fy, level))
-        continue;
+      float fx = x, fy = y;
+      // if (!keyframe->getDisplacedXY(x, y, &fx, &fy, level))
+      //   continue;
+      
       if (pyrIdepthVarSource[idx] <= 0 || pyrIdepthSource[idx] == 0)
         continue;
 

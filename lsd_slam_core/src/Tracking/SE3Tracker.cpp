@@ -766,6 +766,9 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       float w_pu = 1.0f / (cameraPixelNoise2  + s * sqr(drpdd_x));
       float w_pv = 1.0f / (cameraPixelNoise2  + s * sqr(drpdd_y));
 
+      // float w_pu = wu / (cameraPixelNoise2  + s);
+      // float w_pv = wv / (cameraPixelNoise2  + s);
+
       float weighted_rpu = fabs(ru * sqrtf(w_pu));
       float weighted_rpv = fabs(rv * sqrtf(w_pv));
 
@@ -775,8 +778,12 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
       sumRes += whu * w_pu * ru * ru +
                 whv * w_pv * rv * rv;
 
+      // *(buf_weight_u + i) = whu * w_pu;
+      // *(buf_weight_v + i) = whv * w_pv;
       *(buf_weight_u + i) = wu * whu * w_pu;
       *(buf_weight_v + i) = wv * whv * w_pv;
+
+      //*(buf_weight_p + i) = whu * w_pu + whv * w_pv;
     }
     else
     {
@@ -803,7 +810,8 @@ float SE3Tracker::calcWeightsAndResidual(const Sophus::SE3f& referenceToFrame, f
     }
   }
 
-  //printf ("sumRes/buf_warped_size: %f\n", sumRes / buf_warped_size);
+  // if (displacementDebug)
+  //   printf ("R: %f\n", sumRes / buf_warped_size);
   return sumRes / buf_warped_size;
 }
 
@@ -925,6 +933,9 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
 
   float usageCount = 0;
 
+  float duSum = 0;
+  float wuSum = 0;
+
   for (; refPoint < refPoint_max; refPoint++, refColVar++, idxBuf++, gradData++)
   {
     Eigen::Vector3f Wxp = rotMat * (*refPoint) + transVec;
@@ -963,7 +974,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       float rdv = rDisp.y;
 
       // rotate frame gradient with transform
-      bool rotate = true;
+      bool rotate = false;
       Eigen::Matrix2f rotMat2 = rotMat.block<2, 2>(0, 0);
       Eigen::Vector2f frameG (resInterp[0], resInterp[1]);
       Eigen::Vector2f rotFraneG = rotMat2.transpose() * frameG;
@@ -989,6 +1000,9 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
         wv = W.y;
         du = df.x;
         dv = df.y;
+
+        duSum += Du * wu;
+        wuSum += wu;
 
         isGood = true;
 
@@ -1068,6 +1082,9 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
         setPixelInCvMat(&debugImageResiduals, cv::Vec3b(0, 0, 255), x, y, (width / w));
     }
   }
+
+  float duAv = duSum / wuSum * (1 << level);
+  // std::cout << "duAv 1: " << duAv << std::endl; 
 
   buf_warped_size = idx;
 
@@ -1327,6 +1344,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   //	weightEstimator.calcWeights(buf_warped_residual, buf_warped_weights, buf_warped_size);
   //
   float zSum = 0.0f;
+  float duSum = 0.0f;
+  float wSum = 0.0f;
   if (isDisplacement)
   {
     ls.initialize(width * height * 2);
@@ -1355,6 +1374,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Ju[5] = -v;          // dru / d0r
 
       ls.update(Ju, -ru, *(buf_weight_u + i)); 
+      duSum += ru * *(buf_weight_u + i);
+      wSum += *(buf_weight_u + i);
 
       Vector6 Jv;
       Jv[0] = 0;              // drv / dX
@@ -1398,13 +1419,33 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   }
   float zAv = zSum / (float)buf_warped_size ;
   //std::cout << "Zav = " << zAv << std::endl;
+  float duAv = duSum / wSum * (1 << lvl); // Av disparity at level 0
+  //std::cout << "duAv 2: " << duAv << std::endl;
+
 
   Vector6 result;
   // solve ls
   ls.finish();
   ls.solve(result);
   if (displacementDebug)
-    std::cout << std::fixed << std::setprecision(4) << "X (" << lvl << "): " << result.transpose() << std::endl;
+  {
+    if (print4dof) // 4Dof representation
+    {
+      float zAv = 1.0f;
+      float fx_l = 254.327; // Level 0 (u = X * fx / Z)
+      float fy_l = 375.934; // Level 0 (v = X * fy / Z)
+      std::cout << std::fixed << std::setprecision(4)
+        << "X4(" << lvl << ") u: " << result(0) * fx_l / zAv << ", v: " << result(1) * fy_l / zAv 
+        << ", s: " << result(2) << ". 0: " << pAngle(result(5)) << ",, E: " << ls.error <<  std::endl;
+    }
+    else // 6Dof representation
+    {
+      std::cout << std::fixed << std::setprecision(4) << "X6(" << lvl << "): " 
+      << result[0] << ", " << result[1] << ", " << result[2] << ", "
+      << pAngle(result[3]) << ", " << pAngle(result[4]) << ", " << pAngle(result[5]) <<  ",, E: " << ls.error << std::endl;
+    }
+  }
+    //std::cout << std::fixed << std::setprecision(4) << "X (" << lvl << "): " << result.transpose() << std::endl;
 
   return result;  
 }
