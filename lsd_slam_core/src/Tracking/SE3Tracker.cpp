@@ -1354,36 +1354,31 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       float px = *(buf_warped_x + i);
       float py = *(buf_warped_y + i);
       float pz = *(buf_warped_z + i);
-      zSum += pz; 
-      float du_dx = fx_l / pz;
-      float u = *(buf_warped_x + i) * du_dx + *(buf_warped_du + i);
-      float dv_dy = fy_l / pz;
-      float v = *(buf_warped_y + i) * dv_dy + *(buf_warped_dv + i);
-      float du_dz = -px / sqr(pz) * fx_l;
-      float dv_dz = -py / sqr(pz) * fy_l;
+      float z = 1.0f / pz;
+      float z_sqr = 1.0f / (pz * pz);
 
       float ru = *(buf_warped_residual_u + i);
       float rv = *(buf_warped_residual_v + i);
 
       Vector6 Ju;
-      Ju[0] = du_dx;       // dru / dX
-      Ju[1] = 0;           // dru / dY
-      Ju[2] = du_dz;       // dru / dZ  (-u? -u * du_dx? du_dz? )
-      Ju[3] = -u * v;      // dru / d0p
-      Ju[4] = 1.0 + u * u; // dru / d0y
-      Ju[5] = -v;          // dru / d0r
+      Ju[0] = z * fx_l;                       // dru / dX
+      Ju[1] = 0.0f;                           // dru / dY
+      Ju[2] = -px * z_sqr * fx_l;             // dru / dZ  
+      Ju[3] = (-px * py * z_sqr) * fx_l;      // dru / d0P
+      Ju[4] = (1.0 + sqr(px) * z_sqr) * fx_l; // dru / d0Y
+      Ju[5] = -py * z * fx_l;                 // dru / d0R
 
       ls.update(Ju, -ru, *(buf_weight_u + i)); 
       duSum += ru * *(buf_weight_u + i);
       wSum += *(buf_weight_u + i);
 
       Vector6 Jv;
-      Jv[0] = 0;              // drv / dX
-      Jv[1] = dv_dy;          // drv / dY
-      Jv[2] = dv_dz;          // drv / dZ (-v? -v * dv_dy? dv_dz? )
-      Jv[3] = -(1.0 + v * v); // drv / d0p
-      Jv[4] = u * v;          // drv / d0y
-      Jv[5] = u;              // drv / d0r
+      Jv[0] = 0;                              // drv / dX
+      Jv[1] = z * fy_l;                       // drv / dY
+      Jv[2] = -py * z_sqr * fy_l;             // drv / dZ 
+      Jv[3] = -(1.0 + sqr(py) * z_sqr) * fy_l;// drv / d0P
+      Jv[4] = (px * py * z_sqr) * fy_l;       // drv / d0Y
+      Jv[5] = px * z * fy_l;                  // drv / d0R
 
       ls.update(Jv, -rv, *(buf_weight_v + i));
     }

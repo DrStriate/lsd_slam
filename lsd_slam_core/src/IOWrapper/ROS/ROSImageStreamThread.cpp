@@ -58,7 +58,18 @@ ROSImageStreamThread::~ROSImageStreamThread()
 
 void ROSImageStreamThread::setCalibration(std::string file)
 {
-  if (file == "")
+  if (useSimpleCalibration)
+  {
+    width_ = 640;
+    height_ = 480;
+
+    fx_ = height_;
+    fy_ = height_;
+    cx_ = width_ / 2.0f;
+    cy_ = height_ / 2.0f;
+
+  }
+  else if (file == "")
   {
     ros::Subscriber info_sub = nh_.subscribe(nh_.resolveName("camera_info"), 1, &ROSImageStreamThread::infoCb, this);
 
