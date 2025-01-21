@@ -6,7 +6,10 @@
         "limitSymbolsToIncludedHeaders": false
       },
       "includePath": [
+        "/${workspaceFolder}/lsd_slam_core/src/**",
         "/home/steve/catkin_ws/devel/include/**",
+        "/home/steve/catkin_ws/src/Displacements/",
+        "/home/steve/Projects/Displacements/Core/",
         "/opt/ros/noetic/include/**",
         "/usr/include/**"
       ],

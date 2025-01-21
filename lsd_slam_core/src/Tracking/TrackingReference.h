@@ -60,6 +60,7 @@ public:
   void makePointCloud(int level);
   void clearAll();
   void invalidate();
+  Eigen::Vector2f* posData2D[PYRAMID_LEVELS];        // (u, v)
   Eigen::Vector3f* posData[PYRAMID_LEVELS];          // (x,y,z)
   Eigen::Vector4f* gradData[PYRAMID_LEVELS];         // (gx, gy, dx, dy)
   Eigen::Vector2f* colorAndVarData[PYRAMID_LEVELS];  // (I, Var)

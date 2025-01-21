@@ -895,20 +895,10 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
     auto trans = newRefToFrame_poseUpdate.translation();
     auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
     auto rot = q.toRotationMatrix().eulerAngles(0, 1, 2);
-    if (print4dof) // 4Dof representation
-    {
-      float zAv = 1.0f;
-      float fx_l = 254.327; // Level 0 (u = X * fx / Z)
-      float fy_l = 375.934; // Level 0 (v = X * fy / Z)
-      std::cout << std::fixed << std::setprecision(4)
-        << "T4: u: " << trans(0) * fx_l / zAv << ", v: " << trans(1) * fy_l / zAv 
-        << ", s: " << trans(2) << ". 0: " << pAngle(rot(2)) << std::endl;
-    }
-    else // 6Dof representation
-    {
-      std::cout << std::fixed << std::setprecision(4) << "T6: " << trans.transpose() << ", " 
-      << pAngle(rot[0]) << ", " << pAngle(rot[1]) << ", " << pAngle(rot[2]) <<  std::endl;
-    }
+
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << "T6: " << trans.transpose() << ", "
+              << pAngle(rot[0]) << ", " << pAngle(rot[1]) << ", " << pAngle(rot[2]) << std::endl;
   }
 
   gettimeofday(&tv_end, NULL);

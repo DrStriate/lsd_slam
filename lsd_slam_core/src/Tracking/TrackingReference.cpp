@@ -35,6 +35,7 @@ TrackingReference::TrackingReference()
   for (int level = 0; level < PYRAMID_LEVELS; ++level)
   {
     posData[level] = nullptr;
+    posData2D[level] = nullptr;
     gradData[level] = nullptr;
     colorAndVarData[level] = nullptr;
     pointPosInXYGrid[level] = nullptr;
@@ -47,6 +48,8 @@ void TrackingReference::releaseAll()
   {
     if (posData[level] != nullptr)
       delete[] posData[level];
+    if (posData2D[level] != nullptr)
+      delete[] posData2D[level];
     if (gradData[level] != nullptr)
       delete[] gradData[level];
     if (colorAndVarData[level] != nullptr)
@@ -116,6 +119,8 @@ void TrackingReference::makePointCloud(int level)
 
   if (posData[level] == nullptr)
     posData[level] = new Eigen::Vector3f[w * h];
+  if (posData2D[level] == nullptr)
+    posData2D[level] = new Eigen::Vector2f[w * h];
   if (pointPosInXYGrid[level] == nullptr)
     pointPosInXYGrid[level] = (int*)Eigen::internal::aligned_malloc(w * h * sizeof(int));
   ;
@@ -125,6 +130,7 @@ void TrackingReference::makePointCloud(int level)
     colorAndVarData[level] = new Eigen::Vector2f[w * h];
 
   Eigen::Vector3f* posDataPT = posData[level];
+  Eigen::Vector2f* posData2DPT = posData2D[level];
   int* idxPT = pointPosInXYGrid[level];
   Eigen::Vector4f* gradDataPT = gradData[level];
   Eigen::Vector2f* colorAndVarDataPT = colorAndVarData[level];
@@ -143,18 +149,24 @@ void TrackingReference::makePointCloud(int level)
       if (pyrIdepthVarSource[idx] <= 0 || pyrIdepthSource[idx] == 0)
         continue;
 
+      *posData2DPT = Eigen::Vector2f(x, y);
+      // Displacement testing with fixed Z
+      float Z = (testFixedZ? 1.0f : pyrIdepthSource[idx]);
       *posDataPT =
-          (1.0f / pyrIdepthSource[idx]) * Eigen::Vector3f(fxInvLevel * fx + cxInvLevel, fyInvLevel * fy + cyInvLevel, 1);
+          (1.0f / Z) * Eigen::Vector3f(fxInvLevel * fx + cxInvLevel, fyInvLevel * fy + cyInvLevel, 1);
       *colorAndVarDataPT = Eigen::Vector2f(pyrColorSource[idx], pyrIdepthVarSource[idx]);
+
       *idxPT = idx;
 
       posDataPT++;
+      posData2DPT++;
       gradDataPT++;
       colorAndVarDataPT++;
       idxPT++;
     }
 
   numData[level] = posDataPT - posData[level];
+  //std::cout << "level " << level << ": num " << numData[level] << std::endl;
 }
 
 }  // namespace lsd_slam

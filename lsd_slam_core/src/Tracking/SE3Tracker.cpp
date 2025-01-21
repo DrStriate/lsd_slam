@@ -43,6 +43,18 @@ namespace lsd_slam
 #endif
 #endif
 
+
+auto isTestPoint = [](float u, float v, int lvl, float r = 0.5f)
+  {
+    if (lvl == 4)
+      return false;
+    int w = 640 >> lvl; 
+    int h = 480 >> lvl;
+    float2 c = make_float2(w / 2.0f, h / 2.0f);
+    float2 p = make_float2((c.x - w / 8.0f), c.y);
+    return sqrt(sqr(p.x - u) + sqr(p.y - v)) <= r;
+  };
+
 SE3Tracker::SE3Tracker(int w, int h, Eigen::Matrix3f K)
 {
   width = w;
@@ -68,6 +80,8 @@ SE3Tracker::SE3Tracker(int w, int h, Eigen::Matrix3f K)
   buf_warped_dy = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_weight_p = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
 
+  buf_ref_u = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
+  buf_ref_v = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_residual_u = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_residual_v = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
   buf_warped_du = (float*)Eigen::internal::aligned_malloc(w * h * sizeof(float));
@@ -112,6 +126,9 @@ SE3Tracker::~SE3Tracker()
   Eigen::internal::aligned_free((void*)buf_warped_dx);
   Eigen::internal::aligned_free((void*)buf_warped_dy);
   Eigen::internal::aligned_free((void*)buf_weight_p);
+
+  Eigen::internal::aligned_free((void*)buf_ref_u);
+  Eigen::internal::aligned_free((void*)buf_ref_v);
 
   Eigen::internal::aligned_free((void*)buf_warped_residual_u);
   Eigen::internal::aligned_free((void*)buf_warped_residual_v);
@@ -190,7 +207,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
   float fy_l = KLvl(1, 1);
 
   callOptimized(calcResidualAndBuffers,
-                (reference->permaRef_posData, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts, frame,
+                (reference->permaRef_posData, reference->permaRef_posData2D, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts, frame,
                  referenceToFrame, QUICK_KF_CHECK_LVL, false));
   if (buf_warped_size < MIN_GOODPERALL_PIXEL_ABSMIN * (width >> QUICK_KF_CHECK_LVL) * (height >> QUICK_KF_CHECK_LVL))
   {
@@ -227,7 +244,7 @@ SE3 SE3Tracker::trackFrameOnPermaref(Frame* reference, Frame* frame, SE3 referen
 
       // re-evaluate residual
       callOptimized(calcResidualAndBuffers,
-                    (reference->permaRef_posData, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts,
+                    (reference->permaRef_posData, reference->permaRef_posData2D, reference->permaRef_colorAndVarData, reference->gradients(QUICK_KF_CHECK_LVL), 0, reference->permaRefNumPts,
                      frame, new_referenceToFrame, QUICK_KF_CHECK_LVL, false));
       if (buf_warped_size <
           MIN_GOODPERALL_PIXEL_ABSMIN * (width >> QUICK_KF_CHECK_LVL) * (height >> QUICK_KF_CHECK_LVL))
@@ -335,7 +352,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
     float cy_l = KLvl(1, 2);
 
     callOptimized(calcResidualAndBuffers,
-                  (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
+                  (reference->posData[lvl], reference->posData2D[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
                    SE3TRACKING_MIN_LEVEL == lvl ? reference->pointPosInXYGrid[lvl] : 0, reference->numData[lvl], frame,
                    referenceToFrame, lvl, (plotTracking && lvl == SE3TRACKING_MIN_LEVEL)));
     if (buf_warped_size < MIN_GOODPERALL_PIXEL_ABSMIN * (width >> lvl) * (height >> lvl))
@@ -381,7 +398,7 @@ SE3 SE3Tracker::trackFrame(TrackingReference* reference, Frame* frame, const SE3
 
         // re-evaluate residual
         callOptimized(calcResidualAndBuffers,
-                      (reference->posData[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
+                      (reference->posData[lvl], reference->posData2D[lvl], reference->colorAndVarData[lvl], reference->gradData[lvl],
                        SE3TRACKING_MIN_LEVEL == lvl ? reference->pointPosInXYGrid[lvl] : 0, reference->numData[lvl],
                        frame, new_referenceToFrame, lvl, (plotTracking && lvl == SE3TRACKING_MIN_LEVEL)));
         if (buf_warped_size < MIN_GOODPERALL_PIXEL_ABSMIN * (width >> lvl) * (height >> lvl))
@@ -893,7 +910,7 @@ float SE3Tracker::calcResidualAndBuffersNEON(const Eigen::Vector3f* refPoint, co
 }
 #endif
 
-float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
+float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refPoint2D, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
                                          int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                          bool plotResidual)
 {
@@ -933,14 +950,27 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
 
   float usageCount = 0;
 
-  float duSum = 0;
-  float wuSum = 0;
 
-  for (; refPoint < refPoint_max; refPoint++, refColVar++, idxBuf++, gradData++)
+  for (; refPoint < refPoint_max; refPoint++, refPoint2D++, refColVar++, idxBuf++, gradData++)
   {
-    Eigen::Vector3f Wxp = rotMat * (*refPoint) + transVec;
+    Eigen::Vector3f refPointMod = *refPoint;
+    // Displacement fixed Z testing
+    if (testFixedZ)
+      refPointMod[2] = 1.0f;  
+    Eigen::Vector3f Wxp = rotMat * refPointMod + transVec;
     float u_new = (Wxp[0] / Wxp[2]) * fx_l + cx_l;
     float v_new = (Wxp[1] / Wxp[2]) * fy_l + cy_l;
+
+    // if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
+    // {
+    //   printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
+    //   std::cout << "refPoint2D:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint2D).transpose() << std::endl;
+    //   std::cout << "refPointMod:" << std::endl << std::fixed << std::setprecision(4) << refPointMod.transpose() << std::endl;
+    //   std::cout << "rotMat:" << std::endl << std::fixed << std::setprecision(4) << rotMat << std::endl;
+    //   std::cout << "transVec:" << std::endl << std::fixed << std::setprecision(4) << transVec.transpose() << std::endl;
+    //   std::cout << "Wxp:" << std::endl << std::fixed << std::setprecision(4) << Wxp.transpose() << std::endl;
+    //   std::cout << "uv_new:" << std::endl << std::fixed << u_new << ", " << v_new  << std::endl;
+    // }
 
     // step 1a: coordinates have to be in image:
     // (inverse test to exclude NANs)
@@ -961,13 +991,6 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       float rgu = (*gradData)[0];
       float rgv = (*gradData)[1];
 
-      // // rotate reference gradient with transform ???
-      // bool rotate = false;
-      // Eigen::Matrix2f rotMat2 = rotMat.block<2, 2>(0, 0);
-      // Eigen::Vector2f refG ((*gradData)[0], (*gradData)[1]);
-      // Eigen::Vector2f rotRefG = rotMat2 * refG;
-      // float rgu = rotate? rotRefG(0) : refG(0);
-      // float rgv = rotate? rotRefG(1) : refG(1);
       float rLaplacian = (*gradData)[2];
       float4 rDisp = DisplacementFn::getDisplacement(rLaplacian, rgu, rgv, displacementSigma);
       float rdu = rDisp.x;
@@ -992,26 +1015,36 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       float4 D; // uu, uv, D, wt
       float4 W; // wu, wv
       float2 P; // pu, pv
+
       if (DisparityFn::getDisparityCoeffs(dr, df, u_new, v_new, D, W, P))
       {
         Du = D.x * D.z;
         Dv = D.y * D.z;
         wu = W.x;
         wv = W.y;
-        du = df.x;
-        dv = df.y;
-
-        duSum += Du * wu;
-        wuSum += wu;
 
         isGood = true;
 
         *(buf_warped_wu + idx) = wu; 
         *(buf_warped_wv + idx) = wv;
-        *(buf_warped_du + idx) = du;
-        *(buf_warped_dv + idx) = dv;
+        *(buf_ref_u + idx) = (*refPoint2D)[0];
+        *(buf_ref_v + idx) = (*refPoint2D)[1];
         *(buf_warped_residual_u + idx) = Du;
         *(buf_warped_residual_v + idx) = Dv;
+        // *(buf_warped_dx + idx) = fx_l * resInterp[0];
+        // *(buf_warped_dy + idx) = fy_l * resInterp[1];  
+
+        // Debug - get ref u,v
+      if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
+        {
+          // printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
+          // printf("uv1 - (%f, %f)\n", (*refPoint2D)[0], (*refPoint2D)[1]);
+          // printf("lr %f, gx %f, gy %f\n", rLaplacian, rgu, rgv);
+          // printf("dr) dx %f, dy %f, gx %f, gy %f\n", dr.x, dr.y, dr.z, dr.w);
+          // printf("uv2 - (%f, %f)\n", u_new, v_new);
+          // printf("l2 %f, gx %f, gy %f\n", fLaplacian, fgu, fgv);
+          // printf("df) dx %f, dy %f, gx %f, gy %f\n", df.x, df.y, df.z, df.w);
+        }
       }
     }
     else
@@ -1083,8 +1116,6 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     }
   }
 
-  float duAv = duSum / wuSum * (1 << level);
-  // std::cout << "duAv 1: " << duAv << std::endl; 
 
   buf_warped_size = idx;
 
@@ -1344,11 +1375,10 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   //	weightEstimator.calcWeights(buf_warped_residual, buf_warped_weights, buf_warped_size);
   //
   float zSum = 0.0f;
-  float duSum = 0.0f;
-  float wSum = 0.0f;
+
   if (isDisplacement)
   {
-    ls.initialize(width * height * 2);
+    ls.initialize(buf_warped_size * 2);
     for (int i = 0; i < buf_warped_size; i++)
     {
       float px = *(buf_warped_x + i);
@@ -1368,9 +1398,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Ju[4] = (1.0 + sqr(px) * z_sqr) * fx_l; // dru / d0Y
       Ju[5] = -py * z * fx_l;                 // dru / d0R
 
-      ls.update(Ju, -ru, *(buf_weight_u + i)); 
-      duSum += ru * *(buf_weight_u + i);
-      wSum += *(buf_weight_u + i);
+      ls.update(Ju, -ru, *(buf_warped_wu + i)); 
 
       Vector6 Jv;
       Jv[0] = 0;                              // drv / dX
@@ -1380,7 +1408,23 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Jv[4] = (px * py * z_sqr) * fy_l;       // drv / d0Y
       Jv[5] = px * z * fy_l;                  // drv / d0R
 
-      ls.update(Jv, -rv, *(buf_weight_v + i));
+      ls.update(Jv, -rv, *(buf_warped_wv + i));
+
+      float r_u = *(buf_ref_u + i);
+      float r_v = *(buf_ref_v + i);
+      if (isTestPoint(r_u, r_v, lvl))
+      {
+        //printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Test Point Detected %i (%f, %f)\n", lvl, r_u, r_v);
+        // printf("fx_l: %3.4ff\n", fx_l);
+        // printf("fy_l: %3.4ff\n", fy_l);
+        // printf("z: %3.4ff\n", z);
+        // printf("px: %3.4ff\n", px);
+        // printf("py: %3.4ff\n", py);
+        // printf("ru: %f, wu %f\n", -ru, *(buf_weight_u + i));
+        // std::cout << "Ju: " << std::endl << std::fixed << std::setprecision(4) << Ju.transpose() << std::endl;
+        // printf("rv: %f, wv %f\n", -rv, *(buf_weight_v + i));
+        // std::cout << "Jv: " << std::endl << std::fixed << std::setprecision(4) << Jv.transpose() << std::endl;
+      }
     }
   }
   else
@@ -1414,8 +1458,6 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   }
   float zAv = zSum / (float)buf_warped_size ;
   //std::cout << "Zav = " << zAv << std::endl;
-  float duAv = duSum / wSum * (1 << lvl); // Av disparity at level 0
-  //std::cout << "duAv 2: " << duAv << std::endl;
 
 
   Vector6 result;
@@ -1424,23 +1466,11 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   ls.solve(result);
   if (displacementDebug)
   {
-    if (print4dof) // 4Dof representation
-    {
-      float zAv = 1.0f;
-      float fx_l = 254.327; // Level 0 (u = X * fx / Z)
-      float fy_l = 375.934; // Level 0 (v = X * fy / Z)
-      std::cout << std::fixed << std::setprecision(4)
-        << "X4(" << lvl << ") u: " << result(0) * fx_l / zAv << ", v: " << result(1) * fy_l / zAv 
-        << ", s: " << result(2) << ". 0: " << pAngle(result(5)) << ",, E: " << ls.error <<  std::endl;
-    }
-    else // 6Dof representation
-    {
-      std::cout << std::fixed << std::setprecision(4) << "X6(" << lvl << "): " 
-      << result[0] << ", " << result[1] << ", " << result[2] << ", "
-      << pAngle(result[3]) << ", " << pAngle(result[4]) << ", " << pAngle(result[5]) <<  ",, E: " << ls.error << std::endl;
-    }
+    //std::cout << "A" << std::endl << std::fixed << std::setprecision(4) << ls.A << std::endl;
+    //std::cout << "b" << std::endl << std::fixed << std::setprecision(4) << ls.b << std::endl;
+    // std::cout << std::fixed << std::setprecision(4) << "X(" << lvl << "): " 
+    //   << result.transpose() << ",, E: " << ls.error << std::endl;
   }
-    //std::cout << std::fixed << std::setprecision(4) << "X (" << lvl << "): " << result.transpose() << std::endl;
 
   return result;  
 }

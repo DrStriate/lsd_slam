@@ -24,6 +24,7 @@
 #include "DepthEstimation/DepthMapPixelHypothesis.h"
 #include "Tracking/TrackingReference.h"
 #include <gaussianPyramids.h>
+#include <displacementFn.h>
 #include <postProcess.h>
 namespace lsd_slam
 {
@@ -110,6 +111,8 @@ Frame::~Frame()
 
   if (permaRef_colorAndVarData != 0)
     delete permaRef_colorAndVarData;
+  if (permaRef_posData2D != 0) // Displacement debug addition
+    delete permaRef_posData2D;
   if (permaRef_posData != 0)
     delete permaRef_posData;
 
@@ -172,11 +175,14 @@ void Frame::setPermaRef(TrackingReference* reference)
   permaRefNumPts = reference->numData[QUICK_KF_CHECK_LVL];
   permaRef_colorAndVarData = new Eigen::Vector2f[permaRefNumPts];
   permaRef_posData = new Eigen::Vector3f[permaRefNumPts];
+  permaRef_posData2D = new Eigen::Vector2f[permaRefNumPts];
 
   memcpy(permaRef_colorAndVarData, reference->colorAndVarData[QUICK_KF_CHECK_LVL],
          sizeof(Eigen::Vector2f) * permaRefNumPts);
 
   memcpy(permaRef_posData, reference->posData[QUICK_KF_CHECK_LVL], sizeof(Eigen::Vector3f) * permaRefNumPts);
+  // Displacement debug addition
+  memcpy(permaRef_posData2D, reference->posData2D[QUICK_KF_CHECK_LVL], sizeof(Eigen::Vector2f) * permaRefNumPts);
 
   permaRef_mutex.unlock();
 }
@@ -470,6 +476,7 @@ void Frame::initialize(int id, int width, int height, const Eigen::Matrix3f& K, 
   permaRefNumPts = 0;
   permaRef_colorAndVarData = 0;
   permaRef_posData = 0;
+  permaRef_posData2D = 0;
 
   meanIdepth = 1;
   numPoints = 0;
@@ -695,7 +702,7 @@ void Frame::buildGradients(int level)
         gradxyii_pt[idx] = gradient_pt;
         sumg.x += sqr(gradient[idx].x);
         sumg.y += sqr(gradient[idx].x);
-
+        
         N++;
       }
     }
@@ -945,6 +952,12 @@ bool Frame::getDisplacedXY(int x, int y, float *outX, float *outY, int level)
   //   const Eigen::Vector4f grad = gradData[x + y * this->width(level)];
   //   if (grad[0] == 0.0f && grad[1] == 0.0f)
   //     return false;
+  //   float rgu = grad[0];
+  //   float rgv = grad[1];
+  //   float rLaplacian = grad[2];
+  //   float4 rDisp = DisplacementFn::getDisplacement(rLaplacian, rgu, rgv, displacementSigma);
+  //   float rdu = rDisp.x;
+  //   float rdv = rDisp.y;
   //   float dx = grad[2];
   //   float dy = grad[3];
   //   *outX += dx;
