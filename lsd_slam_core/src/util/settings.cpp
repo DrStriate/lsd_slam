@@ -26,7 +26,7 @@ namespace lsd_slam
 {
 RunningStats runningStats;
 
-bool isDisplacement = false;
+bool isDisplacement = true;
 float displacementSigma = 4.0f;
 float minUseDispGrad = 3.0f;
 bool displacementDebug = true;

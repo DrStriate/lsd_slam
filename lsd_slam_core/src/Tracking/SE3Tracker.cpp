@@ -953,11 +953,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
 
   for (; refPoint < refPoint_max; refPoint++, refPoint2D++, refColVar++, idxBuf++, gradData++)
   {
-    Eigen::Vector3f refPointMod = *refPoint;
-    // Displacement fixed Z testing
-    if (testFixedZ)
-      refPointMod[2] = 1.0f;  
-    Eigen::Vector3f Wxp = rotMat * refPointMod + transVec;
+    Eigen::Vector3f Wxp = rotMat * (*refPoint) + transVec;
     float u_new = (Wxp[0] / Wxp[2]) * fx_l + cx_l;
     float v_new = (Wxp[1] / Wxp[2]) * fy_l + cy_l;
 
