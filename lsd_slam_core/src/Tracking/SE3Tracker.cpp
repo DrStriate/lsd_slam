@@ -993,7 +993,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
       float rdv = rDisp.y;
 
       // rotate frame gradient with transform
-      bool rotate = false;
+      bool rotate = true;
       Eigen::Matrix2f rotMat2 = rotMat.block<2, 2>(0, 0);
       Eigen::Vector2f frameG (resInterp[0], resInterp[1]);
       Eigen::Vector2f rotFraneG = rotMat2.transpose() * frameG;
@@ -1371,6 +1371,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   //	weightEstimator.calcWeights(buf_warped_residual, buf_warped_weights, buf_warped_size);
   //
   float zSum = 0.0f;
+  float rSumSq = 0.0f;
 
   if (isDisplacement)
   {
@@ -1405,6 +1406,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Jv[5] = px * z * fy_l;                  // drv / d0R
 
       ls.update(Jv, -rv, *(buf_warped_wv + i));
+
+      rSumSq += sqr(ru) + sqr(rv);
 
       float r_u = *(buf_ref_u + i);
       float r_v = *(buf_ref_v + i);
@@ -1464,8 +1467,8 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   {
     //std::cout << "A" << std::endl << std::fixed << std::setprecision(4) << ls.A << std::endl;
     //std::cout << "b" << std::endl << std::fixed << std::setprecision(4) << ls.b << std::endl;
-    // std::cout << std::fixed << std::setprecision(4) << "X(" << lvl << "): " 
-    //   << result.transpose() << ",, E: " << ls.error << std::endl;
+    std::cout << std::fixed << std::setprecision(4) << "X(" << lvl << "): " 
+      << result.transpose() << ",, Rms R: " << sqrt(rSumSq) << std::endl;
   }
 
   return result;  
