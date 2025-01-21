@@ -31,7 +31,7 @@ float displacementSigma = 4.0f;
 float minUseDispGrad = 3.0f;
 bool displacementDebug = true;
 bool useSimpleCalibration = false;
-bool testFixedZ = true;
+bool testFixedZ = false;
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;
