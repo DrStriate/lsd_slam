@@ -81,6 +81,7 @@
         "valarray": "cpp",
         "variant": "cpp",
         "__nullptr": "cpp",
-        "__locale": "cpp"
+        "__locale": "cpp",
+        "ios": "cpp"
     }
 }

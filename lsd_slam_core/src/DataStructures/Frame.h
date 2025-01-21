@@ -28,6 +28,8 @@
 #include "unordered_set"
 #include "util/settings.h"
 
+#include "lsdPyramids.h"
+
 namespace lsd_slam
 {
 class DepthMapPixelHypothesis;
@@ -107,6 +109,8 @@ public:
   inline bool* refPixelWasGoodNoCreate();
   inline void clear_refPixelWasGood();
 
+  bool getDisplacedXY (int x, int y, float* outX, float* outY, int level = SE3TRACKING_MIN_LEVEL);
+
   /** Flags for use with require() and requirePyramid(). See the Frame class
    * documentation for their exact meaning. */
   enum DataFlags
@@ -167,6 +171,7 @@ public:
   // Tracking Reference for quick test. Always available, never taken out of memory.
   // this is used for re-localization and re-Keyframe positioning.
   boost::mutex permaRef_mutex;
+  Eigen::Vector2f* permaRef_posData2D;        // (u,v)
   Eigen::Vector3f* permaRef_posData;          // (x,y,z)
   Eigen::Vector2f* permaRef_colorAndVarData;  // (I, Var)
   int permaRefNumPts;
@@ -232,7 +237,6 @@ private:
     double timestamp;
 
     float* image[PYRAMID_LEVELS];
-    float* displacementImage;
     bool imageValid[PYRAMID_LEVELS];
 
     Eigen::Vector4f* gradients[PYRAMID_LEVELS];
@@ -262,6 +266,10 @@ private:
     // data from initial tracking, indicating which pixels in the reference frame ware good or not.
     // deleted as soon as frame is used for mapping.
     bool* refPixelWasGood;
+
+    // Displacement model data
+    std::shared_ptr<Image<float2>> gradientPyramid[6];
+    std::shared_ptr<Image<float>> laplacianPyramid[6];
   };
   Data data;
 
@@ -276,6 +284,7 @@ private:
    * representation in memory. Use release(Frame::ALL, false) to store on disk instead.
    * ONLY CALL THIS, if an exclusive lock on activeMutex is owned! */
   bool minimizeInMemory();
+
 };
 
 inline int Frame::id() const
@@ -341,15 +350,8 @@ inline double Frame::timestamp() const
 
 inline float* Frame::image(int level)
 {
-  //printf ("request (IMAGE, id %i level %i)\n", data.id, level);
-  if (isDisplacement && level == 0)
-  {
-    return data.displacementImage;
-  }
   if (!data.imageValid[level])
   {  
-    if (displacementDebugInfo)
-      printf ("require(IMAGE, id %i level %i)\n", data.id, level);
     require(IMAGE, level);
   }
   return data.image[level];

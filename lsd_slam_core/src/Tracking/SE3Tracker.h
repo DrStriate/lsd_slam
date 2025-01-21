@@ -30,6 +30,11 @@ namespace lsd_slam
 class TrackingReference;
 class Frame;
 
+auto pAngle = [] (float rad) 
+{
+  return (rad > M_PI / 2 ? rad - M_PI : (rad < -M_PI / 2 ? rad + M_PI : rad));
+};
+
 class SE3Tracker
 {
 public:
@@ -86,6 +91,10 @@ private:
   float* buf_warped_y;
   float* buf_warped_z;
 
+// Displacement debug addition
+  float* buf_ref_u;
+  float* buf_ref_v;
+  
   float* buf_warped_residual_u;
   float* buf_warped_residual_v;
   float* buf_warped_du;
@@ -96,14 +105,14 @@ private:
   float* buf_d;
   float* buf_idepthVar;
   float* buf_weight_p;
-  float* buf_weight_px;
-  float* buf_weight_py;
+  float* buf_weight_u;
+  float* buf_weight_v;
 
   int buf_warped_size;
   
   std::pair<float, float> calculateDisplacement(float laplacian, float gx, float gy, float levelSigma);
 
-  float calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
+  float calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const Eigen::Vector2f* refPoint2D, const Eigen::Vector2f* refColVar, const Eigen::Vector4f* gradData,
                                int* idxBuf, int refNum, Frame* frame, const Sophus::SE3f& referenceToFrame, int level,
                                bool plotResidual = false);
 
@@ -126,7 +135,7 @@ private:
   float calcWeightsAndResidualNEON(const Sophus::SE3f& referenceToFrame);
 #endif
 
-  Vector6 calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l);
+  Vector6 calculateWarpUpdate(NormalEquationsLeastSquares& ls, float fx_l, float fy_l, int level = 0);
 #if defined(ENABLE_SSE)
   Vector6 calculateWarpUpdateSSE(NormalEquationsLeastSquares& ls);
 #endif

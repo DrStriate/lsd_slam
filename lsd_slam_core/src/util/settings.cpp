@@ -26,10 +26,12 @@ namespace lsd_slam
 {
 RunningStats runningStats;
 
-bool isDisplacement = false;
-float displacementSigma = 3.0f;
-float laplacianGain = 1e4f; // for display of laplacians (vs image) in Frame.cpp
-bool displacementDebug = false;
+bool isDisplacement = true;
+float displacementSigma = 4.0f;
+float minUseDispGrad = 3.0f;
+bool displacementDebug = true;
+bool useSimpleCalibration = false;
+bool testFixedZ = false;
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;
@@ -79,7 +81,7 @@ float freeDebugParam5 = 1;
 float KFDistWeight = 4;
 float KFUsageWeight = 3;
 
-float minUseGrad = 5;
+float minUseGrad = 5; 
 float cameraPixelNoise2 = 4 * 4;
 float depthSmoothingFactor = 1;
 

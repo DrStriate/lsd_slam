@@ -891,12 +891,14 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
   // Debug info for Displacement testing
   if (displacementDebug)
   {
-    std::cout << "newRefToFrame T:" << std::endl;
-    auto T = newRefToFrame_poseUpdate.translation();
-    std::cout << T << std::endl;
+    std::cout ;
+    auto trans = newRefToFrame_poseUpdate.translation();
     auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
-    auto euler = q.toRotationMatrix().eulerAngles(1, 2, 0);
-    std::cout << euler << std::endl;
+    auto rot = q.toRotationMatrix().eulerAngles(0, 1, 2);
+
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << "T6: " << trans.transpose() << ", "
+              << pAngle(rot[0]) << ", " << pAngle(rot[1]) << ", " << pAngle(rot[2]) << std::endl;
   }
 
   gettimeofday(&tv_end, NULL);

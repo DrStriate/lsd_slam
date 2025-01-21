@@ -1,7 +1,33 @@
 {
-
     "version": "2.0.0",
     "tasks": [
+        {
+            "label": "catkin all default",
+            "type": "shell",
+            "command": "catkin build --profile default --continue",
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": [
+                    "absolute"
+                ]
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "catkin all debug",
+            "type": "shell",
+            "command": "catkin build --profile debug --continue",
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": [
+                    "absolute"
+                ]
+            },
+            "group": "build"
+        },
         {
             "label": "ROS: central_catkin_make DEBUG",
             "type": "catkin_make",
@@ -31,7 +57,7 @@
             "problemMatcher": "$catkin-gcc",
             "group": {
                 "kind": "build",
-                "isDefault": true
+
             }
         },
         {
@@ -67,7 +93,7 @@
             "problemMatcher": "$catkin-gcc",
             "group": {
                 "kind": "build",
-                "isDefault": true
+                "isDefault": false
             }
         },
         {
