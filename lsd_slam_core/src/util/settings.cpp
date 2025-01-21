@@ -26,12 +26,12 @@ namespace lsd_slam
 {
 RunningStats runningStats;
 
-bool isDisplacement = true;
+bool isDisplacement = false;
 float displacementSigma = 4.0f;
 float minUseDispGrad = 3.0f;
 bool displacementDebug = true;
 bool useSimpleCalibration = false;
-bool testFixedZ = false;
+bool testFixedZ = true;
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;

@@ -846,6 +846,13 @@ void SlamSystem::randomInit(uchar* image, double timeStamp, int id)
   printf("Done Random initialization!\n");
 }
 
+auto pAngle = [] (float rad) 
+{
+  rad /= M_PI;
+  return (rad > 0.5f ? rad - 1.0f : (rad < -0.5f ? rad + 1.0f : rad));
+};
+
+
 void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilMapped, double timestamp)
 {
   // Create new frame

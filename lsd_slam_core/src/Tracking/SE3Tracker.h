@@ -30,11 +30,6 @@ namespace lsd_slam
 class TrackingReference;
 class Frame;
 
-auto pAngle = [] (float rad) 
-{
-  return (rad > M_PI / 2 ? rad - M_PI : (rad < -M_PI / 2 ? rad + M_PI : rad));
-};
-
 class SE3Tracker
 {
 public:
