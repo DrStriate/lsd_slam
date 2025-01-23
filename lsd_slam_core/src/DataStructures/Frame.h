@@ -202,7 +202,7 @@ public:
   int numMappablePixels;
   float meanInformation;
 
-private:
+//private:
   void require(int dataFlags, int level = 0);
   void release(int dataFlags, bool pyramidsOnly, bool invalidateOnly);
 

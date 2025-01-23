@@ -31,7 +31,8 @@ float displacementSigma = 4.0f;
 float minUseDispGrad = 3.0f;
 bool displacementDebug = true;
 bool useSimpleCalibration = false;
-bool testFixedZ = false;
+bool testFixedZ = true;
+float c_offset = 0.5f; // Pramid level-to-level center offset: 0.0 or 0.5 (?)
 
 bool autoRun = true;
 bool autoRunWithinFrame = true;

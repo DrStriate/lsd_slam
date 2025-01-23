@@ -158,6 +158,7 @@ extern float minUseDispGrad;
 extern bool displacementDebug;
 extern bool useSimpleCalibration;
 extern bool testFixedZ;
+extern float c_offset;
 
 // settings variables
 // controlled via keystrokes

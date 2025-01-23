@@ -957,16 +957,16 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
     float u_new = (Wxp[0] / Wxp[2]) * fx_l + cx_l;
     float v_new = (Wxp[1] / Wxp[2]) * fy_l + cy_l;
 
-    // if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
-    // {
-    //   printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
-    //   std::cout << "refPoint2D:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint2D).transpose() << std::endl;
-    //   std::cout << "refPointMod:" << std::endl << std::fixed << std::setprecision(4) << refPointMod.transpose() << std::endl;
-    //   std::cout << "rotMat:" << std::endl << std::fixed << std::setprecision(4) << rotMat << std::endl;
-    //   std::cout << "transVec:" << std::endl << std::fixed << std::setprecision(4) << transVec.transpose() << std::endl;
-    //   std::cout << "Wxp:" << std::endl << std::fixed << std::setprecision(4) << Wxp.transpose() << std::endl;
-    //   std::cout << "uv_new:" << std::endl << std::fixed << u_new << ", " << v_new  << std::endl;
-    // }
+    if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
+    {
+      printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
+      std::cout << "refPoint2D:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint2D).transpose() << std::endl;
+      std::cout << "refPoint:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint).transpose() << std::endl;
+      std::cout << "rotMat:" << std::endl << std::fixed << std::setprecision(4) << rotMat << std::endl;
+      std::cout << "transVec:" << std::endl << std::fixed << std::setprecision(4) << transVec.transpose() << std::endl;
+      std::cout << "Wxp:" << std::endl << std::fixed << std::setprecision(4) << Wxp.transpose() << std::endl;
+      std::cout << "uv_new:" << std::endl << std::fixed << u_new << ", " << v_new  << std::endl;
+    }
 
     // step 1a: coordinates have to be in image:
     // (inverse test to exclude NANs)
@@ -1030,16 +1030,13 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
         // *(buf_warped_dx + idx) = fx_l * resInterp[0];
         // *(buf_warped_dy + idx) = fy_l * resInterp[1];  
 
-        // Debug - get ref u,v
-      if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
+        // Debug - get l and d
+        if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
         {
-          // printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
-          // printf("uv1 - (%f, %f)\n", (*refPoint2D)[0], (*refPoint2D)[1]);
-          // printf("lr %f, gx %f, gy %f\n", rLaplacian, rgu, rgv);
-          // printf("dr) dx %f, dy %f, gx %f, gy %f\n", dr.x, dr.y, dr.z, dr.w);
-          // printf("uv2 - (%f, %f)\n", u_new, v_new);
-          // printf("l2 %f, gx %f, gy %f\n", fLaplacian, fgu, fgv);
-          // printf("df) dx %f, dy %f, gx %f, gy %f\n", df.x, df.y, df.z, df.w);
+          printf("lr %f, gx %f, gy %f\n", rLaplacian, rgu, rgv);
+          printf("dr) dx %f, dy %f, gx %f, gy %f\n", dr.x, dr.y, dr.z, dr.w);
+          printf("l2 %f, gx %f, gy %f\n", fLaplacian, fgu, fgv);
+          printf("df) dx %f, dy %f, gx %f, gy %f\n", df.x, df.y, df.z, df.w);
         }
       }
     }

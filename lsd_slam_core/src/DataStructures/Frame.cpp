@@ -76,6 +76,7 @@ Frame::Frame(int id, int width, int height, const Eigen::Matrix3f& K, double tim
       data.image[0],
       data.width[0],
       data.height[0]);
+
     // for (int i = SE3TRACKING_MAX_LEVEL - 1; i >= SE3TRACKING_MIN_LEVEL; i--)
     // {
     //   PostProcess::displayImage(*data.gradientPyramid[i], 1, 0);
@@ -453,8 +454,8 @@ void Frame::initialize(int id, int width, int height, const Eigen::Matrix3f& K, 
     {
       data.fx[level] = data.fx[level - 1] * 0.5;
       data.fy[level] = data.fy[level - 1] * 0.5;
-      data.cx[level] = (data.cx[0] + 0.5) / ((int)1 << level) - 0.5;
-      data.cy[level] = (data.cy[0] + 0.5) / ((int)1 << level) - 0.5;
+      data.cx[level] = (data.cx[0] + c_offset) / ((int)1 << level) - c_offset;
+      data.cy[level] = (data.cy[0] + c_offset) / ((int)1 << level) - c_offset;
 
       data.K[level] << data.fx[level], 0.0, data.cx[level], 0.0, data.fy[level], data.cy[level], 0.0, 0.0,
           1.0;  // synthetic
@@ -653,12 +654,11 @@ void Frame::buildGradients(int level)
     data.gradients[level] =
         (Eigen::Vector4f*)FrameMemory::getInstance().getBuffer(sizeof(Eigen::Vector4f) * width * height);
 
-  Eigen::Vector4f *gradxyii_pt = data.gradients[level] + width;
-
   double2 sumg {0.0, 0.0};
   int N = 0;
   if (!isDisplacement)
   {
+    Eigen::Vector4f *gradxyii_pt = data.gradients[level] + width;
     const float* img_pt = data.image[level] + width;
     const float* img_pt_max = data.image[level] + width * (height - 1);
 
@@ -684,6 +684,7 @@ void Frame::buildGradients(int level)
   }
   else // displacement data
   {
+    Eigen::Vector4f *gradxyii_pt = data.gradients[level];
     std::shared_ptr<Image<float2>> gradientImage = data.gradientPyramid[level];
     std::shared_ptr<Image<float>> laplacianImage = data.laplacianPyramid[level];
     const float2* gradient = gradientImage->HData();
