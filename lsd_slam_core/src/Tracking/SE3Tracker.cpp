@@ -28,6 +28,7 @@
 #include "Tracking/least_squares.h"
 #include <disparityFn.h>
 #include <displacementFn.h>
+#include <postProcess.h>
 
 #include <Eigen/Core>
 
@@ -932,6 +933,7 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
   Eigen::Vector3f transVec = referenceToFrame.translation();
 
   const Eigen::Vector3f* refPoint_max = refPoint + refNum;
+  //printf("refNum %i\n", refNum);
 
   const Eigen::Vector4f* frame_gradients = frame->gradients(level);
 
@@ -950,23 +952,22 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
 
   float usageCount = 0;
 
-
   for (; refPoint < refPoint_max; refPoint++, refPoint2D++, refColVar++, idxBuf++, gradData++)
   {
     Eigen::Vector3f Wxp = rotMat * (*refPoint) + transVec;
     float u_new = (Wxp[0] / Wxp[2]) * fx_l + cx_l;
     float v_new = (Wxp[1] / Wxp[2]) * fy_l + cy_l;
 
-    if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
-    {
-      printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
-      std::cout << "refPoint2D:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint2D).transpose() << std::endl;
-      std::cout << "refPoint:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint).transpose() << std::endl;
-      std::cout << "rotMat:" << std::endl << std::fixed << std::setprecision(4) << rotMat << std::endl;
-      std::cout << "transVec:" << std::endl << std::fixed << std::setprecision(4) << transVec.transpose() << std::endl;
-      std::cout << "Wxp:" << std::endl << std::fixed << std::setprecision(4) << Wxp.transpose() << std::endl;
-      std::cout << "uv_new:" << std::endl << std::fixed << u_new << ", " << v_new  << std::endl;
-    }
+    // if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
+    // {
+    //   printf("cam: fx %f, fy %f, cx %f, cy %f\n", fx_l, fy_l, cx_l, cy_l);
+    //   std::cout << "refPoint2D:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint2D).transpose() << std::endl;
+    //   std::cout << "refPoint:" << std::endl << std::fixed << std::setprecision(4) << (*refPoint).transpose() << std::endl;
+    //   std::cout << "rotMat:" << std::endl << std::fixed << std::setprecision(4) << rotMat << std::endl;
+    //   std::cout << "transVec:" << std::endl << std::fixed << std::setprecision(4) << transVec.transpose() << std::endl;
+    //   std::cout << "Wxp:" << std::endl << std::fixed << std::setprecision(4) << Wxp.transpose() << std::endl;
+    //   std::cout << "uv_new:" << std::endl << std::fixed << u_new << ", " << v_new  << std::endl;
+    // }
 
     // step 1a: coordinates have to be in image:
     // (inverse test to exclude NANs)
@@ -1031,13 +1032,13 @@ float SE3Tracker::calcResidualAndBuffers(const Eigen::Vector3f* refPoint, const 
         // *(buf_warped_dy + idx) = fy_l * resInterp[1];  
 
         // Debug - get l and d
-        if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
-        {
-          printf("lr %f, gx %f, gy %f\n", rLaplacian, rgu, rgv);
-          printf("dr) dx %f, dy %f, gx %f, gy %f\n", dr.x, dr.y, dr.z, dr.w);
-          printf("l2 %f, gx %f, gy %f\n", fLaplacian, fgu, fgv);
-          printf("df) dx %f, dy %f, gx %f, gy %f\n", df.x, df.y, df.z, df.w);
-        }
+        // if (isTestPoint((*refPoint2D)[0], (*refPoint2D)[1], level))
+        // {
+        //   printf("lr %f, gx %f, gy %f\n", rLaplacian, rgu, rgv);
+        //   printf("dr) dx %f, dy %f, gx %f, gy %f\n", dr.x, dr.y, dr.z, dr.w);
+        //   printf("l2 %f, gx %f, gy %f\n", fLaplacian, fgu, fgv);
+        //   printf("df) dx %f, dy %f, gx %f, gy %f\n", df.x, df.y, df.z, df.w);
+        // }
       }
     }
     else
@@ -1392,7 +1393,7 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
       Ju[4] = (1.0 + sqr(px) * z_sqr) * fx_l; // dru / d0Y
       Ju[5] = -py * z * fx_l;                 // dru / d0R
 
-      ls.update(Ju, -ru, *(buf_warped_wu + i)); 
+      ls.update(Ju, -ru, *(buf_warped_wu + i));
 
       Vector6 Jv;
       Jv[0] = 0;                              // drv / dX
@@ -1408,19 +1409,22 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
 
       float r_u = *(buf_ref_u + i);
       float r_v = *(buf_ref_v + i);
-      if (isTestPoint(r_u, r_v, lvl))
-      {
-        //printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Test Point Detected %i (%f, %f)\n", lvl, r_u, r_v);
-        // printf("fx_l: %3.4ff\n", fx_l);
-        // printf("fy_l: %3.4ff\n", fy_l);
-        // printf("z: %3.4ff\n", z);
-        // printf("px: %3.4ff\n", px);
-        // printf("py: %3.4ff\n", py);
-        // printf("ru: %f, wu %f\n", -ru, *(buf_weight_u + i));
-        // std::cout << "Ju: " << std::endl << std::fixed << std::setprecision(4) << Ju.transpose() << std::endl;
-        // printf("rv: %f, wv %f\n", -rv, *(buf_weight_v + i));
-        // std::cout << "Jv: " << std::endl << std::fixed << std::setprecision(4) << Jv.transpose() << std::endl;
-      }
+      // if (isTestPoint(r_u, r_v, lvl))
+      // {
+      //   printf("fx_l: %3.4ff\n", fx_l);
+      //   printf("fy_l: %3.4ff\n", fy_l);
+      //   printf("z: %3.4ff\n", z);
+      //   printf("px: %3.4ff\n", px);
+      //   printf("py: %3.4ff\n", py);
+      //   std::cout << "Ju: " << std::fixed << std::setprecision(4) << Ju.transpose() << std::endl;
+      //   printf("ru: %f, wu %f\n", ru, *(buf_warped_wu + i));
+      //   std::cout << "Jv: " << std::fixed << std::setprecision(4) << Jv.transpose() << std::endl;
+      //   printf("rv: %f, wv %f\n", rv, *(buf_warped_wv + i));
+      // }
+      
+      // Print entries to regression
+      // float DMag = sqrt(sqr(ru) + sqr(rv));
+      // printf("(%i, %i) Dmag %3.4f, W (%3.4f, %3.4f)\n", (int)r_u, (int)r_v, DMag, *(buf_warped_wu + i), *(buf_warped_wv + i));
     }
   }
   else
@@ -1464,8 +1468,9 @@ Vector6 SE3Tracker::calculateWarpUpdate(NormalEquationsLeastSquares& ls, float f
   {
     //std::cout << "A" << std::endl << std::fixed << std::setprecision(4) << ls.A << std::endl;
     //std::cout << "b" << std::endl << std::fixed << std::setprecision(4) << ls.b << std::endl;
-    std::cout << std::fixed << std::setprecision(4) << "X(" << lvl << "): " 
-      << result.transpose() << ",, Rms R: " << sqrt(rSumSq) << std::endl;
+    // std::cout << std::fixed << std::setprecision(4) << "X(" << lvl << "): " 
+    //   << result.transpose() << ",, Rms R: " << sqrt(rSumSq / buf_warped_size) << std::endl;
+    // printf("N = %i points\n", buf_warped_size);
   }
 
   return result;  

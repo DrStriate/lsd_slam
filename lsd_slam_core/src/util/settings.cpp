@@ -28,7 +28,7 @@ RunningStats runningStats;
 
 bool isDisplacement = true;
 float displacementSigma = 4.0f;
-float minUseDispGrad = 3.0f;
+float minUseDispGrad = 5.0f;
 bool displacementDebug = true;
 bool useSimpleCalibration = false;
 bool testFixedZ = true;

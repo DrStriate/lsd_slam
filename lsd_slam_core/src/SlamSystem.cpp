@@ -898,7 +898,6 @@ void SlamSystem::trackFrame(uchar* image, unsigned int frameID, bool blockUntilM
   // Debug info for Displacement testing
   if (displacementDebug)
   {
-    std::cout ;
     auto trans = newRefToFrame_poseUpdate.translation();
     auto q = newRefToFrame_poseUpdate.so3().unit_quaternion();
     auto rot = q.toRotationMatrix().eulerAngles(0, 1, 2);
